@@ -68,9 +68,13 @@ export default function AdminLayout() {
             대시보드
           </NavLink>
           <NavLink to="/admin/scenario">시나리오 진행</NavLink>
+          <NavLink to="/admin/bracket">대진표</NavLink>
           <NavLink to="/admin/setup">대회 설정</NavLink>
           <a href="#/board" target="_blank" rel="noreferrer">
             전광판 ↗
+          </a>
+          <a href="#/bracket" target="_blank" rel="noreferrer">
+            공개 대진표 ↗
           </a>
         </nav>
       </div>

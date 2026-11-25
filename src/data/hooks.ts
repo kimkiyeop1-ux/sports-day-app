@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { onAuthStateChanged, type User } from 'firebase/auth';
 import { auth, db, isConfigured } from '../lib/firebase';
-import { paths } from './store';
+import { parseJsonDoc, paths, type JsonDoc } from './store';
 
 export interface DocState<T> {
   data: T | null;
@@ -75,4 +75,11 @@ export function useNow(intervalMs = 1000): number {
     return () => clearInterval(id);
   }, [intervalMs]);
   return now;
+}
+
+/** JSON 문자열로 저장된 문서(대진표 등)를 구독해 객체로 돌려준다 */
+export function useJsonDoc<T>(path: string | null): DocState<T> {
+  const s = useDoc<JsonDoc>(path);
+  const data = useMemo(() => parseJsonDoc<T>(s.data), [s.data?.json]); // eslint-disable-line react-hooks/exhaustive-deps
+  return { ...s, data };
 }

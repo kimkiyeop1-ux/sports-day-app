@@ -31,7 +31,7 @@
       "name": "단체줄넘기",
       "scope": "grade",
       "grades": [2],
-      "format": { "type": "ranking" },
+      "format": { "type": "ranking", "rankBy": "record_high" },
       "match": { "mode": "score" },
       "points": { "byRank": [80, 70, 60, 50, 40, 30, 20, 10], "participation": 10, "leagueWin": 3, "leagueDraw": 1, "leagueLoss": 0, "weight": 1 },
       "location": "운동장 중앙"
@@ -41,7 +41,7 @@
       "name": "학급 계주",
       "scope": "grade",
       "grades": [2],
-      "format": { "type": "ranking", "heatSize": 4 },
+      "format": { "type": "ranking", "heatSize": 4, "rankBy": "record_low" },
       "match": { "mode": "score" },
       "points": { "byRank": [100, 85, 70, 60, 50, 40, 30, 20], "participation": 10, "leagueWin": 3, "leagueDraw": 1, "leagueLoss": 0, "weight": 1.5 },
       "location": "트랙",

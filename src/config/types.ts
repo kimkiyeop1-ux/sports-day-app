@@ -30,6 +30,13 @@ export interface FormatConfig {
   thirdPlaceMatch?: boolean;
   /** 순위제: 한 번에 같이 뛰는 학급 수(0 또는 생략 = 전체가 한 번에) */
   heatSize?: number;
+  /**
+   * 순위제: 최종 순위를 정하는 방법
+   * 'rank'        = 순위를 직접 입력(기본)
+   * 'record_low'  = 기록이 낮을수록 높은 순위(달리기 시간 등)
+   * 'record_high' = 기록이 높을수록 높은 순위(줄넘기 횟수 등)
+   */
+  rankBy?: 'rank' | 'record_low' | 'record_high';
 }
 
 /** 한 경기의 승패 결정 방식 */

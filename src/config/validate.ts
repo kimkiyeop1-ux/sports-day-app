@@ -43,6 +43,8 @@ export function validateConfig(raw: unknown): string[] {
       if (!ev.format.groupCount || ev.format.groupCount < 2) e.push(`종목 "${n}": 조 개수는 2 이상이어야 합니다.`);
       if (!ev.format.advancePerGroup || ev.format.advancePerGroup < 1) e.push(`종목 "${n}": 조별 진출 수는 1 이상이어야 합니다.`);
     }
+    if (ev.format?.rankBy && !['rank', 'record_low', 'record_high'].includes(ev.format.rankBy))
+      e.push(`종목 "${n}": 순위 방법(rankBy)은 rank, record_low, record_high 중 하나여야 합니다.`);
     if (ev.match?.mode === 'sets' && !(ev.match.setsToWin && ev.match.setsToWin >= 1))
       e.push(`종목 "${n}": 세트제는 선승 세트 수가 필요합니다.`);
     const p = ev.points;

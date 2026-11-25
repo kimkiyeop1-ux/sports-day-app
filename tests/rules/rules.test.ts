@@ -132,3 +132,31 @@ describe('관리자', () => {
     await assertSucceeds(deleteDoc(doc(admin(), `${T}/audit/a1`)));
   });
 });
+
+describe('대진표(2단계)', () => {
+  const B = `${T}/private/bracket_dodgeball`;
+  const PB = `${T}/public/bracket_dodgeball`;
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, B), { json: '{}', updatedAt: 1 });
+      await setDoc(doc(db, PB), { json: '{}', updatedAt: 1 });
+    });
+  });
+  it('누구나 공개 대진표를 읽을 수 있다', async () => {
+    await assertSucceeds(getDoc(doc(anon(), PB)));
+  });
+  it('비로그인·일반 사용자는 대진표 원본(메모 포함)을 읽을 수 없다', async () => {
+    await assertFails(getDoc(doc(anon(), B)));
+    await assertFails(getDoc(doc(stranger(), B)));
+  });
+  it('비로그인·일반 사용자는 경기 결과를 고칠 수 없다', async () => {
+    await assertFails(setDoc(doc(anon(), PB), { json: '{"results":{}}', updatedAt: 2 }));
+    await assertFails(setDoc(doc(stranger(), PB), { json: '{"results":{}}', updatedAt: 2 }));
+    await assertFails(setDoc(doc(stranger(), B), { json: '{}', updatedAt: 2 }));
+  });
+  it('관리자는 대진표 원본과 공개본을 쓸 수 있다', async () => {
+    await assertSucceeds(setDoc(doc(admin(), B), { json: '{}', updatedAt: 2 }));
+    await assertSucceeds(setDoc(doc(admin(), PB), { json: '{}', updatedAt: 2 }));
+  });
+});

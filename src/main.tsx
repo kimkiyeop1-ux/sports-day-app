@@ -9,6 +9,8 @@ const AdminLayout = lazy(() => import('./pages/admin/AdminLayout'));
 const Dashboard = lazy(() => import('./pages/admin/Dashboard'));
 const SetupEditor = lazy(() => import('./pages/admin/SetupEditor'));
 const ScenarioRun = lazy(() => import('./pages/admin/ScenarioRun'));
+const BracketAdmin = lazy(() => import('./pages/admin/BracketAdmin'));
+const PublicBracket = lazy(() => import('./pages/bracket/PublicBracket'));
 const Connect = lazy(() => import('./pages/Connect'));
 import Board from './pages/board/Board';
 
@@ -23,8 +25,11 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           <Route index element={<Dashboard />} />
           <Route path="setup" element={<SetupEditor />} />
           <Route path="scenario" element={<ScenarioRun />} />
+          <Route path="bracket" element={<BracketAdmin />} />
         </Route>
         <Route path="/board" element={<Board />} />
+        <Route path="/bracket" element={<PublicBracket />} />
+        <Route path="/bracket/:eventId" element={<PublicBracket />} />
         <Route path="/connect" element={<Connect />} />
         <Route path="*" element={<Home />} />
       </Routes>

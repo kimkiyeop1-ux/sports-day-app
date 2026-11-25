@@ -44,9 +44,14 @@ export default function Dashboard() {
             {delayLabel(p.delayMin)}
           </span>
         </p>
-        <Link className="btn btn-primary" to="/admin/scenario">
-          시나리오 진행 화면 열기
-        </Link>
+        <div className="row">
+          <Link className="btn btn-primary" to="/admin/scenario">
+            시나리오 진행 화면 열기
+          </Link>
+          <Link className="btn" to="/admin/bracket">
+            대진표·경기 결과
+          </Link>
+        </div>
       </div>
       <div className="card muted small">
         로그인: {auth.currentUser?.email} ·{' '}
