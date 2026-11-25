@@ -1,0 +1,74 @@
+{
+  "version": 1,
+  "id": "2026-sample",
+  "title": "2026 샘플중학교 체육대회",
+  "school": "샘플중학교",
+  "date": "2026-05-15",
+  "grades": [{ "grade": 2, "classCount": 8 }],
+  "events": [
+    {
+      "id": "dodgeball",
+      "name": "피구",
+      "scope": "grade",
+      "grades": [2],
+      "format": { "type": "single_elim", "thirdPlaceMatch": true },
+      "match": { "mode": "sets", "setsToWin": 2 },
+      "points": { "byRank": [100, 80, 60, 50, 40, 40, 40, 40], "participation": 10, "leagueWin": 3, "leagueDraw": 1, "leagueLoss": 0, "weight": 1 },
+      "location": "운동장 A"
+    },
+    {
+      "id": "kickball",
+      "name": "발야구",
+      "scope": "grade",
+      "grades": [2],
+      "format": { "type": "groups_knockout", "groupCount": 2, "advancePerGroup": 2, "thirdPlaceMatch": true },
+      "match": { "mode": "score", "allowDraw": true },
+      "points": { "byRank": [100, 80, 60, 50, 40, 40, 30, 30], "participation": 10, "leagueWin": 3, "leagueDraw": 1, "leagueLoss": 0, "weight": 1 },
+      "location": "운동장 B"
+    },
+    {
+      "id": "jumprope",
+      "name": "단체줄넘기",
+      "scope": "grade",
+      "grades": [2],
+      "format": { "type": "ranking" },
+      "match": { "mode": "score" },
+      "points": { "byRank": [80, 70, 60, 50, 40, 30, 20, 10], "participation": 10, "leagueWin": 3, "leagueDraw": 1, "leagueLoss": 0, "weight": 1 },
+      "location": "운동장 중앙"
+    },
+    {
+      "id": "relay",
+      "name": "학급 계주",
+      "scope": "grade",
+      "grades": [2],
+      "format": { "type": "ranking", "heatSize": 4 },
+      "match": { "mode": "score" },
+      "points": { "byRank": [100, 85, 70, 60, 50, 40, 30, 20], "participation": 10, "leagueWin": 3, "leagueDraw": 1, "leagueLoss": 0, "weight": 1.5 },
+      "location": "트랙",
+      "memo": "4학급씩 2개 조로 달린 뒤 기록순으로 최종 순위"
+    }
+  ],
+  "scenario": [
+    { "id": "s01", "time": "08:30", "durationMin": 20, "title": "학생 입장 및 학급별 정렬", "owner": "학년부", "note": "학생 여러분, 학급 깃발 앞으로 모여 주세요." },
+    { "id": "s02", "time": "08:50", "durationMin": 20, "title": "개회식", "owner": "교무부", "note": "지금부터 2026 샘플중학교 체육대회 개회식을 시작하겠습니다." },
+    { "id": "s03", "time": "09:10", "durationMin": 10, "title": "준비운동", "owner": "체육부" },
+    { "id": "s04", "time": "09:20", "durationMin": 60, "title": "피구 1라운드(8강)", "owner": "체육부", "eventId": "dodgeball" },
+    { "id": "s05", "time": "09:20", "durationMin": 60, "title": "발야구 조별리그", "owner": "체육부", "eventId": "kickball" },
+    { "id": "s06", "time": "10:20", "durationMin": 40, "title": "단체줄넘기", "owner": "체육부", "eventId": "jumprope", "note": "각 학급 2분 동안 최고 기록으로 순위를 정합니다." },
+    { "id": "s07", "time": "11:00", "durationMin": 50, "title": "피구 4강·발야구 4강", "owner": "체육부" },
+    { "id": "s08", "time": "11:50", "durationMin": 60, "title": "점심시간", "owner": "학년부", "note": "점심시간입니다. 12시 50분까지 운동장으로 모여 주세요." },
+    { "id": "s09", "time": "12:50", "durationMin": 20, "title": "응원전", "owner": "학생회" },
+    { "id": "s10", "time": "13:10", "durationMin": 40, "title": "피구·발야구 결승 및 3·4위전", "owner": "체육부" },
+    { "id": "s11", "time": "13:50", "durationMin": 30, "title": "학급 계주", "owner": "체육부", "eventId": "relay" },
+    { "id": "s12", "time": "14:20", "durationMin": 20, "title": "정리 및 점수 집계", "owner": "체육부" },
+    { "id": "s13", "time": "14:40", "durationMin": 30, "title": "폐회식 및 시상(최종 순위 공개)", "owner": "교무부", "note": "이제 최종 순위를 발표하겠습니다." }
+  ],
+  "scoring": {
+    "bonusCategories": [
+      { "id": "cheer", "name": "응원점수" },
+      { "id": "order", "name": "질서점수" },
+      { "id": "penalty", "name": "감점", "negative": true }
+    ],
+    "tieBreakers": ["mostFirstPlaces"]
+  }
+}

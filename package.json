@@ -1,0 +1,35 @@
+{
+  "name": "sports-day-app",
+  "version": "1.0.0",
+  "description": "체육대회 원앱 - 시나리오, 대진표, 결과 입력, 점수 집계",
+  "scripts": {
+    "dev": "vite",
+    "dev:emu": "VITE_USE_EMULATOR=1 vite",
+    "emulators": "firebase emulators:start --project demo-sportsday",
+    "seed": "node scripts/seed-emulator.mjs",
+    "build": "tsc && vite build",
+    "test": "vitest run",
+    "test:rules": "firebase emulators:exec --only firestore --project demo-sportsday \"vitest run --config tests/rules/vitest.config.ts\"",
+    "check-config": "node scripts/check-config.mjs",
+    "release": "node scripts/release.mjs"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "firebase": "^11.1.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.28.0"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^4.0.1",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "firebase-tools": "^13.29.1",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.7",
+    "vitest": "^2.1.8"
+  },
+  "private": true,
+  "type": "module"
+}

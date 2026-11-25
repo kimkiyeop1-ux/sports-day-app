@@ -1,0 +1,72 @@
+rules_version = '2';
+
+// =============================================================
+// 체육대회 원앱 보안 규칙
+// 핵심 원칙: 공개 화면이 읽을 수 있는 곳은 public/ 뿐이며,
+//            public/ 에는 총점·순위·종목별 획득 점수가 절대 저장되지 않는다.
+//            나머지(private/, audit/ 등)는 관리자만 읽을 수 있다.
+// =============================================================
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // 관리자 = meta/admins 문서의 uids 목록에 있는 계정 (Firebase 콘솔에서만 수정 가능)
+    function isAdmin() {
+      return signedIn()
+        && request.auth.uid in get(/databases/$(database)/documents/meta/admins).data.uids;
+    }
+
+    match /meta/active {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /meta/admins {
+      allow read: if isAdmin();
+      // 최초 1회: 관리자 목록이 아직 없을 때만, Google로 로그인한 사람이 '자기 자신만' 등록할 수 있다.
+      // 한 번 만들어진 뒤에는 앱에서 절대 수정·삭제할 수 없다(바꾸려면 Firebase 콘솔에서).
+      allow create: if signedIn()
+        && request.auth.token.firebase.sign_in_provider == 'google.com'
+        && request.resource.data.keys().hasOnly(['uids'])
+        && request.resource.data.uids == [request.auth.uid];
+      allow update, delete: if false;
+    }
+
+    // 보안 규칙 버전 확인용(앱이 '규칙 업데이트 필요'를 알려줄 때 사용). 문서는 실제로 없다.
+    // 규칙을 바꿀 때마다 숫자를 올리고 src/lib/rulesVersion.ts 의 RULES_VERSION 도 같이 올린다.
+    match /meta/rulesCheck_v1 {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /tournaments/{t} {
+      // 공개용 문서: 누구나 읽기, 관리자만 쓰기
+      match /public/{docId} {
+        allow read: if true;
+        allow write: if isAdmin();
+      }
+
+      // 관리자 전용: 설정(배점), 시나리오 기록, 점수 등
+      match /private/{docId} {
+        allow read, write: if isAdmin();
+      }
+
+      // 변경 이력: 관리자만 읽기. 추가만 가능하고 수정 불가.
+      // (삭제는 '전체 초기화'를 위해 관리자에게만 허용)
+      match /audit/{id} {
+        allow read: if isAdmin();
+        allow create: if isAdmin() && request.resource.data.actor == request.auth.uid;
+        allow update: if false;
+        allow delete: if isAdmin();
+      }
+    }
+
+    // 그 외 모든 경로는 거부
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
