@@ -272,7 +272,17 @@ function EventsTab({ draft, set }: TabProps) {
                 </label>
               )}
               {ev.format.type === 'ranking' && (
-                <div className="field"><label>한 번에 뛰는 학급 수 (0 = 전체 한 번에)</label><input type="number" min={0} value={ev.format.heatSize ?? 0} onChange={(e) => upd(i, { format: { ...ev.format, heatSize: Number(e.target.value) } })} /></div>
+                <div className="grid2">
+                  <div className="field"><label>한 번에 뛰는 학급 수 (0 = 전체 한 번에)</label><input type="number" min={0} value={ev.format.heatSize ?? 0} onChange={(e) => upd(i, { format: { ...ev.format, heatSize: Number(e.target.value) } })} /></div>
+                  <div className="field">
+                    <label>순위 정하는 방법</label>
+                    <select value={ev.format.rankBy ?? 'rank'} onChange={(e) => upd(i, { format: { ...ev.format, rankBy: e.target.value as 'rank' | 'record_low' | 'record_high' } })}>
+                      <option value="rank">순위를 직접 입력</option>
+                      <option value="record_low">기록이 낮을수록 위(달리기 시간 등)</option>
+                      <option value="record_high">기록이 높을수록 위(횟수 등)</option>
+                    </select>
+                  </div>
+                </div>
               )}
               <h3 style={{ marginTop: 12 }}>배점 🔒 <span className="muted small">(관리자만 볼 수 있음)</span></h3>
               <div className="field"><label>순위별 점수 (1위, 2위, 3위… 쉼표로 구분)</label><NumList value={ev.points.byRank} onChange={(v) => upd(i, { points: { ...ev.points, byRank: v } })} /></div>

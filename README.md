@@ -13,7 +13,7 @@
 |---|---|---|
 | 0 | 저장소·샘플 설정·학교 연결 화면·안정판/개발판 배포 | ✅ |
 | 1 | 대회 설정 편집, 시나리오 진행, 전광판 진행 화면 | ✅ |
-| 2 | 대진표(토너먼트·리그·조별+토너먼트·순위제·세트제) | ⏳ |
+| 2 | 대진표(토너먼트·리그·조별+토너먼트·순위제·세트제) | ✅ |
 | 3 | 심판 입력(링크+PIN), 실시간·오프라인, 이력·되돌리기 | ⏳ |
 | 4 | 점수·순위 집계, 경기 외 점수, 동점 규칙 | ⏳ |
 | 5 | 순위 비공개·블라인드·최종 공개 연출 | ⏳ |
@@ -24,7 +24,9 @@
 | 주소 | 누가 | 설명 |
 |---|---|---|
 | `#/admin` | 관리자 | 대시보드, 시나리오 진행, 대회 설정 (Google 로그인) |
+| `#/admin/bracket` | 관리자 | 대진표 만들기·자리 수정(추첨 결과)·경기 결과 입력 |
 | `#/board` | 전광판 | 현재 진행 중 / 다음 순서 (로그인 없음, 화면 더블클릭 = 전체화면) |
+| `#/bracket` | 누구나 | 종목별 대진표·경기 결과 (로그인 없음, 총점·순위 없음) |
 | `#/connect` | 각 학교 | 학교 Firebase 연결, 보안 규칙·로그인 설정 점검, 기기 공유 링크 |
 
 ---
@@ -88,6 +90,7 @@
 |---|---|
 | `grades` | 학년별 학급 수. `{ "grade": 2, "classCount": 8 }` → 2-1 ~ 2-8 |
 | `events[].format.type` | `single_elim` 토너먼트 / `round_robin` 리그 / `groups_knockout` 조별리그+토너먼트 / `ranking` 순위제 |
+| `events[].format.rankBy` | 순위제만: `rank` 순위 직접 입력 / `record_low` 기록 낮을수록 위(시간) / `record_high` 기록 높을수록 위(횟수) |
 | `events[].match` | `{ "mode": "sets", "setsToWin": 2 }` = 3판 2선승, `{ "mode": "score", "allowDraw": true }` = 점수제·무승부 가능 |
 | `events[].points` | `byRank` 순위별 점수, `participation` 참가점, `leagueWin/Draw/Loss` 리그 승점, `weight` 가중치 |
 | `scenario[]` | `time` 계획 시각, `durationMin` 소요 분, `owner` 담당자, `note` 방송 멘트(관리자만 보임) |
@@ -103,7 +106,8 @@ meta/active                         공개    현재 대회 ID
 meta/admins                         관리자  관리자 UID 목록 (최초 1명 자기등록, 이후 콘솔에서만 수정)
 tournaments/{대회}/public/info      공개    학급·종목 이름 (배점 없음)
 tournaments/{대회}/public/progress  공개    진행 순서·완료 여부 (방송 멘트 없음)
-tournaments/{대회}/private/*        관리자  설정(배점), 시나리오 기록, 경기 원본, 점수
+tournaments/{대회}/public/bracket_{종목}  공개  대진표·경기 결과(승패·스코어만)
+tournaments/{대회}/private/*        관리자  설정(배점), 시나리오 기록, 대진표 원본(메모 포함), 점수
 tournaments/{대회}/audit/*          관리자  변경 이력 (추가만 가능, 수정 불가)
 ```
 
