@@ -1,0 +1,68 @@
+name: 배포 (GitHub Pages)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: 저장소 가져오기
+        uses: actions/checkout@v4
+        with:
+          path: main
+          fetch-depth: 0
+
+      - name: 개발판 테스트·빌드
+        working-directory: main
+        run: |
+          npm ci
+          npm test
+          npm run test:rules
+          npm run build
+
+      - name: 안정판 테스트·빌드
+        run: |
+          SHA=$(tr -d '[:space:]' < main/STABLE_VERSION || true)
+          mkdir -p site
+          if [ -n "$SHA" ]; then
+            git -C main worktree add ../stable "$SHA"
+            cd stable && npm ci && npm test && npm run test:rules && npm run build && cd ..
+            cp -r stable/dist/. site/
+          else
+            cp -r main/dist/. site/
+          fi
+          mkdir -p site/dev && cp -r main/dist/. site/dev/
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
