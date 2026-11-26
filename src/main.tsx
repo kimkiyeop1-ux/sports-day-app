@@ -12,6 +12,7 @@ const ScenarioRun = lazy(() => import('./pages/admin/ScenarioRun'));
 const BracketAdmin = lazy(() => import('./pages/admin/BracketAdmin'));
 const RefereeAdmin = lazy(() => import('./pages/admin/RefereeAdmin'));
 const History = lazy(() => import('./pages/admin/History'));
+const Scores = lazy(() => import('./pages/admin/Scores'));
 const Referee = lazy(() => import('./pages/referee/Referee'));
 const PublicBracket = lazy(() => import('./pages/bracket/PublicBracket'));
 const Connect = lazy(() => import('./pages/Connect'));
@@ -31,6 +32,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           <Route path="bracket" element={<BracketAdmin />} />
           <Route path="referee" element={<RefereeAdmin />} />
           <Route path="history" element={<History />} />
+          <Route path="scores" element={<Scores />} />
         </Route>
         <Route path="/board" element={<Board />} />
         <Route path="/bracket" element={<PublicBracket />} />

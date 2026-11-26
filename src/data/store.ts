@@ -13,6 +13,7 @@
 //  tournaments/{t}/private/notes_{종목}   관리자 경기 메모
 //  tournaments/{t}/private/referee        관리자 종목별 심판 링크 토큰·PIN
 //  tournaments/{t}/refSessions/{uid}      심판   PIN 확인된 심판 기기(이름 포함)
+//  tournaments/{t}/private/bonus          관리자 경기 외 점수(응원·질서·감점)
 //  tournaments/{t}/audit/{id}          관리자 변경 이력(추가만 가능)
 // =============================================================
 import { collection, doc, FieldPath, writeBatch, type WriteBatch } from 'firebase/firestore';
@@ -37,6 +38,7 @@ export const paths = {
   refKeys: (t: string) => `tournaments/${t}/private/referee`,
   refSessions: (t: string) => `tournaments/${t}/refSessions`,
   refSession: (t: string, uid: string) => `tournaments/${t}/refSessions/${uid}`,
+  bonus: (t: string) => `tournaments/${t}/private/bonus`,
 };
 
 export interface ConfigDoc {
@@ -340,5 +342,28 @@ export function createRefKey(t: string, ev: { id: string; name: string }, prev: 
     after: null,
     extra: { kind: 'refkey', ev: ev.id },
   });
+  return b.commit();
+}
+
+// =============================================================
+// 경기 외 점수 (4단계) — 관리자 전용 private/bonus
+//   v : 항목ID → 학급 → 점수 (감점 항목도 양수로 저장, 계산할 때 뺌)
+// =============================================================
+
+export interface BonusDoc {
+  v?: Record<string, Record<ClassId, number>>;
+  updatedAt?: number;
+}
+
+export function writeBonus(
+  t: string,
+  cat: { id: string; name: string },
+  before: Record<ClassId, number>,
+  after: Record<ClassId, number>,
+  action = '경기 외 점수 입력',
+): Promise<void> {
+  const b = writeBatch(db);
+  b.set(doc(db, paths.bonus(t)), { v: { [cat.id]: after }, updatedAt: Date.now() }, { mergeFields: [new FieldPath('v', cat.id), 'updatedAt'] });
+  addAudit(b, t, { action, target: cat.name, before, after, extra: { kind: 'bonus', cat: cat.id } });
   return b.commit();
 }

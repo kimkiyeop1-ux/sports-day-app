@@ -102,3 +102,27 @@ export function useCollection<T>(path: string | null, orderField?: string, max =
   }, [path, orderField, max]);
   return s;
 }
+
+/** 여러 문서를 한꺼번에 실시간 구독(경로 → 데이터). 모두 처음 받을 때까지 loading */
+export function useDocs<T>(list: string[]): { data: Record<string, T | null>; loading: boolean; error: string | null } {
+  const key = list.join('|');
+  const [s, setS] = useState<{ data: Record<string, T | null>; got: Set<string>; error: string | null }>({ data: {}, got: new Set(), error: null });
+  useEffect(() => {
+    setS({ data: {}, got: new Set(), error: null });
+    if (!isConfigured || !list.length) return;
+    const unsubs = list.map((p) =>
+      onSnapshot(
+        doc(db, p),
+        (snap) =>
+          setS((prev) => ({
+            data: { ...prev.data, [p]: snap.exists() ? (snap.data() as T) : null },
+            got: new Set(prev.got).add(p),
+            error: prev.error,
+          })),
+        (err) => setS((prev) => ({ ...prev, got: new Set(prev.got).add(p), error: err.code ?? err.message })),
+      ),
+    );
+    return () => unsubs.forEach((u) => u());
+  }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
+  return { data: s.data, loading: list.some((p) => !s.got.has(p)), error: s.error };
+}

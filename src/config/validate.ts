@@ -1,5 +1,6 @@
 import type { TournamentConfig } from './types';
 import { parseHM } from '../lib/time';
+import { TIE_KEY_RE } from '../lib/scoring';
 
 const ID_RE = /^[a-z0-9][a-z0-9-_]*$/i;
 const FORMATS = ['single_elim', 'round_robin', 'groups_knockout', 'ranking'];
@@ -63,5 +64,15 @@ export function validateConfig(raw: unknown): string[] {
     if (s.eventId && !evIds.has(s.eventId)) e.push(`시나리오 "${s.title}"의 종목 "${s.eventId}"가 종목 목록에 없습니다.`);
   }
   if (!c.scoring || !Array.isArray(c.scoring.bonusCategories)) e.push('scoring.bonusCategories 가 없습니다.');
+  else {
+    const bonusIds = new Set(c.scoring.bonusCategories.map((b) => b.id));
+    for (const k of Array.isArray(c.scoring.tieBreakers) ? c.scoring.tieBreakers : []) {
+      if (!TIE_KEY_RE.test(k)) e.push(`동점 규칙 "${k}"을(를) 알 수 없습니다.`);
+      else if (k.startsWith('event:') && !evIds.has(k.slice(6))) e.push(`동점 규칙의 종목 "${k.slice(6)}"이(가) 종목 목록에 없습니다.`);
+      else if (k.startsWith('bonus:') && !bonusIds.has(k.slice(6))) e.push(`동점 규칙의 경기 외 점수 "${k.slice(6)}"이(가) 항목 목록에 없습니다.`);
+    }
+    if (c.scoring.sharedRankPoints && !['same', 'average'].includes(c.scoring.sharedRankPoints))
+      e.push('공동 순위 점수 방식(sharedRankPoints)은 same 또는 average 여야 합니다.');
+  }
   return e;
 }
