@@ -77,7 +77,7 @@ export function EventKey({ tid, ev, k, names, blind = false, linkPath, who = '�
         {k && <span className="badge badge-ok">접속한 {who} {names.length}명</span>}
       </div>
       {!k ? (
-        <button className="btn-primary" disabled={busy} onClick={make}>{who} 링크·PIN 만들기</button>
+        <div><button className="btn-primary btn-sm" disabled={busy} onClick={make}>+ {who} 링크·PIN 만들기</button></div>
       ) : (
         <>
           <div className="row">
