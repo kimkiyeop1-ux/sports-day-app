@@ -177,6 +177,9 @@ function Connected() {
             <OpenButton href={consoleUrl.rules(p)}>② 규칙 화면 열기</OpenButton>
           </div>
           <div>열린 화면의 글을 <b>모두 지우고</b> 붙여넣은 뒤 <b>게시</b>. (데이터베이스를 먼저 만들어야 합니다)</div>
+          <div className="muted">
+            글 쓰는 칸이 안 보이면: 열린 화면 위쪽의 <b>규칙</b>(Rules) 탭을 누르세요. 데이터베이스 목록이 나오면 <b>(default)</b>를 먼저 누른 뒤 <b>규칙</b> 탭을 누르세요.
+          </div>
         </>
       ),
     },

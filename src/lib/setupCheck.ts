@@ -117,7 +117,8 @@ export const consoleUrl = {
   home: 'https://console.firebase.google.com/',
   settings: (p: string) => `https://console.firebase.google.com/project/${p}/settings/general`,
   firestore: (p: string) => `https://console.firebase.google.com/project/${p}/firestore`,
-  rules: (p: string) => `https://console.firebase.google.com/project/${p}/firestore/rules`,
+  // 새 콘솔은 데이터베이스별 주소(-default- = 기본 데이터베이스)를 써야 규칙 편집기가 바로 열린다
+  rules: (p: string) => `https://console.firebase.google.com/project/${p}/firestore/databases/-default-/rules`,
   providers: (p: string) => `https://console.firebase.google.com/project/${p}/authentication/providers`,
   domains: (p: string) => `https://console.firebase.google.com/project/${p}/authentication/settings`,
 };
