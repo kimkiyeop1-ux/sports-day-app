@@ -138,4 +138,6 @@ export interface TournamentConfig {
   events: EventConfig[];
   scenario: ScenarioItem[];
   scoring: ScoringConfig;
+  /** 리허설용 대회면 원래 대회 ID(앱이 자동으로 넣음) */
+  rehearsalOf?: string;
 }

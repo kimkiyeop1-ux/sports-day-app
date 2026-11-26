@@ -203,3 +203,7 @@ button, .btn { white-space: nowrap; }
 .confetti span { position: absolute; top: -20px; width: 12px; height: 18px; border-radius: 2px; animation-name: rv-fall; animation-timing-function: linear; animation-iteration-count: infinite; }
 @keyframes rv-fall { to { top: 110vh; transform: rotate(720deg); } }
 @media (prefers-reduced-motion: reduce) { .rv-card, .rv-drum-icon, .confetti span { animation: none; } }
+
+/* ===== 업데이트 알림 ===== */
+.update-banner { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 200; background: #0f172a; color: #fff; border-radius: 12px; padding: 8px 10px 8px 14px; display: flex; gap: 8px; align-items: center; box-shadow: 0 8px 24px rgba(0,0,0,.25); font-size: 14px; max-width: calc(100% - 32px); }
+.update-banner .btn-sm { min-height: 32px; }

@@ -73,6 +73,7 @@ export default function AdminLayout() {
           <NavLink to="/admin/scores">점수·순위</NavLink>
           <NavLink to="/admin/reveal">블라인드·공개</NavLink>
           <NavLink to="/admin/history">변경 이력</NavLink>
+          <NavLink to="/admin/backup">백업·리허설</NavLink>
           <NavLink to="/admin/setup">대회 설정</NavLink>
           <a href="#/board" target="_blank" rel="noreferrer">
             전광판 ↗
@@ -83,6 +84,11 @@ export default function AdminLayout() {
         </nav>
       </div>
       <div className="page">
+        {ctx.config?.rehearsalOf && (
+          <div className="alert alert-warn">
+            🎭 <b>리허설 중</b>입니다. 진짜 대회 기록에는 영향이 없습니다. <NavLink to="/admin/backup">리허설 끝내기 →</NavLink>
+          </div>
+        )}
         <Outlet context={ctx} />
       </div>
     </>
