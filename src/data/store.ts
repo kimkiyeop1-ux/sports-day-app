@@ -19,7 +19,7 @@
 //  tournaments/{t}/reveal/{all|g2}        관리자·공개 진행자  최종 순위 발표 자료
 //  tournaments/{t}/audit/{id}          관리자 변경 이력(추가만 가능)
 // =============================================================
-import { collection, doc, FieldPath, writeBatch, type WriteBatch } from 'firebase/firestore';
+import { collection, doc, FieldPath, getDoc, getDocs, writeBatch, type WriteBatch } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import type { ClassId, EventConfig, MatchRule, TournamentConfig } from '../config/types';
 import type { Division, LeaguePoints, Results } from '../lib/bracket';
@@ -454,4 +454,91 @@ export function writeReveal(t: string, d: RevealDoc): Promise<void> {
   b.set(doc(db, paths.reveal(t, d.scope)), d);
   addAudit(b, t, { action: '최종 순위 발표 자료 만들기', target: d.title, before: null, after: { rows: d.rows.length, complete: d.complete }, extra: { kind: 'reveal' } });
   return b.commit();
+}
+
+// =============================================================
+// 백업 · 리허설 · 전체 초기화 (6단계)
+// =============================================================
+
+/** 대회 하나가 쓰는 모든 문서 경로(설정 제외). 백업·초기화에 사용 */
+export function tournamentDocPaths(t: string, cfg: Pick<TournamentConfig, 'events' | 'grades'>): string[] {
+  const out = [paths.scenario(t), paths.publicProgress(t), paths.bonus(t), paths.blind(t), paths.reveal(t, 'all')];
+  for (const g of cfg.grades) out.push(paths.reveal(t, `g${g.grade}`));
+  for (const e of cfg.events)
+    out.push(paths.bracket(t, e.id), paths.publicBracket(t, e.id), paths.results(t, e.id), paths.hidden(t, e.id), paths.notes(t, e.id));
+  return out;
+}
+
+/** 전체 백업(JSON): 설정 + 모든 문서 + 변경 이력 */
+export async function collectBackup(t: string, cfg: TournamentConfig): Promise<Record<string, unknown>> {
+  const docs: Record<string, unknown> = {};
+  for (const p of [paths.config(t), paths.publicInfo(t), paths.refKeys(t), ...tournamentDocPaths(t, cfg)]) {
+    const s = await getDoc(doc(db, p));
+    if (s.exists()) docs[p] = s.data();
+  }
+  const audit = await getDocs(collection(db, paths.audit(t)));
+  return {
+    app: 'sports-day-app',
+    backupAt: new Date().toISOString(),
+    tournamentId: t,
+    docs,
+    audit: audit.docs.map((d) => ({ id: d.id, ...d.data() })),
+  };
+}
+
+/** 여러 삭제·쓰기를 400개씩 나눠 실행(한 묶음 최대 500개) */
+async function commitInChunks(ops: ((b: WriteBatch) => void)[]) {
+  for (let i = 0; i < ops.length; i += 400) {
+    const b = writeBatch(db);
+    ops.slice(i, i + 400).forEach((op) => op(b));
+    await b.commit();
+  }
+}
+
+/**
+ * 대회 기록 전체 초기화: 설정·심판 링크는 남기고, 시나리오 완료·대진표·결과·점수·블라인드·발표 자료·
+ * 심판 접속 기록·변경 이력을 모두 지운다(되돌릴 수 없음 → 먼저 백업을 내려받게 한다).
+ */
+export async function resetTournament(t: string, cfg: TournamentConfig): Promise<void> {
+  const ops: ((b: WriteBatch) => void)[] = [];
+  // 블라인드 문서와 결과 공개본은 같은 묶음에서 지워야 규칙을 통과하므로 맨 앞에 함께 둔다
+  const first = tournamentDocPaths(t, cfg).filter((p) => p !== paths.publicProgress(t));
+  const audit = await getDocs(collection(db, paths.audit(t)));
+  const sessions = await getDocs(collection(db, paths.refSessions(t)));
+  const firstBatch = writeBatch(db);
+  for (const p of first) firstBatch.delete(doc(db, p));
+  firstBatch.set(doc(db, paths.publicProgress(t)), { items: toPublicScenario(cfg.scenario, {}), updatedAt: Date.now() });
+  await firstBatch.commit();
+  for (const d of [...audit.docs, ...sessions.docs]) ops.push((b) => b.delete(d.ref));
+  await commitInChunks(ops);
+  const b = writeBatch(db);
+  addAudit(b, t, { action: '전체 초기화', target: cfg.title, before: { audit: audit.size }, after: null, extra: { kind: 'reset' } });
+  await b.commit();
+}
+
+export const rehearsalId = (id: string) => `${id}-rehearsal`;
+
+/**
+ * 리허설 시작: 지금 대회 설정을 복사한 '리허설 대회'를 새로 만들어 현재 대회로 바꾼다.
+ * 진짜 대회 기록은 그대로 남는다. 심판·진행자 링크도 복사해 같은 링크로 연습할 수 있다(PIN은 다시 입력).
+ */
+export async function startRehearsal(cfg: TournamentConfig): Promise<void> {
+  const rid = rehearsalId(cfg.id);
+  const rcfg: TournamentConfig = { ...cfg, id: rid, title: `[리허설] ${cfg.title}`, rehearsalOf: cfg.id };
+  // 지난 리허설 기록이 있으면 먼저 지운다
+  await resetTournament(rid, rcfg);
+  const keys = await getDoc(doc(db, paths.refKeys(cfg.id)));
+  const b = writeBatch(db);
+  if (keys.exists()) b.set(doc(db, paths.refKeys(rid)), keys.data());
+  await b.commit();
+  await saveConfig(rcfg, null, {});
+}
+
+/** 리허설 끝내기: 원래 대회로 돌아간다(리허설 기록은 다음 리허설 때 지워짐) */
+export async function endRehearsal(cfg: TournamentConfig): Promise<void> {
+  if (!cfg.rehearsalOf) return;
+  const b = writeBatch(db);
+  b.set(doc(db, paths.active), { tournamentId: cfg.rehearsalOf });
+  addAudit(b, cfg.id, { action: '리허설 끝내기', target: cfg.title, before: null, after: null, extra: { kind: 'rehearsal' } });
+  await b.commit();
 }

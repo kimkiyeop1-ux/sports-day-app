@@ -63,7 +63,18 @@
     `reveal/{all|g2}` 문서는 관리자·진행자만 읽기. 관리자가 [발표 자료 만들기]로 그 순간의 종합 순위를 저장(점수 공개 여부, N위부터 발표 선택)
   - 발표 화면 `src/pages/reveal/RevealStage.tsx`(관리자 미리보기와 진행자 화면 공용), 효과음 `src/lib/sound.ts`(WebAudio 합성, `public/sounds/*.mp3` 있으면 우선)
   - 규칙 확인 번호 목록에 v3 추가(v1·v2 앱도 호환)
-- ⏳ 6단계: PWA(오프라인 앱 셸), CSV 내보내기, 리허설 모드·전체 초기화
+- ✅ 6단계: PWA(오프라인 앱 셸), CSV 내보내기, 리허설 모드·전체 초기화
+  - PWA: `public/manifest.webmanifest`·아이콘, 서비스 워커는 `vite.config.ts`의 플러그인이 빌드 결과 목록으로 `scripts/sw-template.js` → `dist/sw.js` 생성.
+    페이지는 네트워크 우선(끊기면 저장본), 해시 붙은 파일은 저장본 우선. 새 버전은 `UpdateBanner`의 [새로고침]을 누를 때만 교체(`src/lib/pwa.ts`).
+    배포판에서만 등록(개발·에뮬레이터 제외). `/`와 `/dev/`는 각자 자기 서비스 워커를 가짐
+  - 백업 `src/pages/admin/Backup.tsx`: CSV(엑셀용 BOM, 수식 주입 방지 `src/lib/csv.ts`), 전체 백업 JSON(`collectBackup`). 파일 이름은 영문(한글 이름은 'download'로 바뀌는 브라우저가 있음)
+  - 리허설: `startRehearsal` = 설정 복사(`{id}-rehearsal`, 제목 앞 [리허설], `rehearsalOf`) + 심판·진행자 키 복사 + 현재 대회 전환. `endRehearsal` = `meta/active`를 원래 ID로. 진짜 대회 기록은 건드리지 않음
+  - 전체 초기화 `resetTournament`: 설정·심판 키만 남기고 모두 삭제(블라인드 문서와 결과 공개본은 같은 묶음에서 삭제해야 규칙 통과). UI는 대회 ID를 직접 입력해야 실행되고 실행 전 JSON 백업 자동 다운로드
+  - 보안 규칙 변경 없음(v3)
+
+## 다음 할 일(제안)
+- 학교 실제 계획서로 config 만들기 → 리허설 모드로 하루 운영 연습 → 문제 없으면 `npm run release`로 안정판 지정 → 다른 학교 안내
+- 안정판은 현재 2단계 시점(3460cf6)으로 고정되어 있음
 
 ## 데이터 설계 원칙 (꼭 지킬 것)
 - 공개 화면은 `tournaments/{t}/public/*` 와 `meta/active` 만 읽는다. 여기에 총점·순위·종목별 획득 점수를 절대 쓰지 않는다.

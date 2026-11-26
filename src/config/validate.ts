@@ -63,6 +63,7 @@ export function validateConfig(raw: unknown): string[] {
     if (parseHM(s.time) === null) e.push(`시나리오 "${s.title}"의 시각 "${s.time}"이 HH:MM 형식이 아닙니다.`);
     if (s.eventId && !evIds.has(s.eventId)) e.push(`시나리오 "${s.title}"의 종목 "${s.eventId}"가 종목 목록에 없습니다.`);
   }
+  if (c.rehearsalOf != null && (typeof c.rehearsalOf !== 'string' || !ID_RE.test(c.rehearsalOf))) e.push('rehearsalOf 값이 잘못되었습니다.');
   if (!c.scoring || !Array.isArray(c.scoring.bonusCategories)) e.push('scoring.bonusCategories 가 없습니다.');
   else {
     const bonusIds = new Set(c.scoring.bonusCategories.map((b) => b.id));
