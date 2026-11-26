@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import PlanImport from './PlanImport';
 import { useAdmin } from './AdminLayout';
 import type { EventConfig, FormatType, ScenarioItem, TournamentConfig } from '../../config/types';
 import { loadSample } from '../../config/sample';
@@ -7,7 +9,7 @@ import { FORMAT_LABELS } from '../../config/derive';
 import { saveConfig } from '../../data/store';
 import { parseHM } from '../../lib/time';
 
-type Tab = 'basic' | 'events' | 'scenario' | 'file';
+type Tab = 'plan' | 'basic' | 'events' | 'scenario' | 'file';
 
 // ---- 목록 편집 도우미 ----
 function move<T>(arr: T[], i: number, d: -1 | 1): T[] {
@@ -22,7 +24,8 @@ const rid = (p: string) => p + Math.random().toString(36).slice(2, 7);
 export default function SetupEditor() {
   const { config, done } = useAdmin();
   const [draft, setDraft] = useState<TournamentConfig | null>(config);
-  const [tab, setTab] = useState<Tab>('basic');
+  const [params] = useSearchParams();
+  const [tab, setTab] = useState<Tab>(params.get('tab') === 'plan' ? 'plan' : 'basic');
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
@@ -58,6 +61,7 @@ export default function SetupEditor() {
       <div className="row" style={{ marginBottom: 12 }}>
         {(
           [
+            ['plan', '📄 계획서로 만들기'],
             ['basic', '기본·학급'],
             ['events', `종목(${draft.events.length})`],
             ['scenario', `시나리오(${draft.scenario.length})`],
@@ -70,6 +74,7 @@ export default function SetupEditor() {
         ))}
       </div>
 
+      {tab === 'plan' && <PlanImport draft={draft} setDraft={setDraft} onDone={(t) => { setTab(t); window.scrollTo(0, 0); }} />}
       {tab === 'basic' && <BasicTab draft={draft} set={set} />}
       {tab === 'events' && <EventsTab draft={draft} set={set} />}
       {tab === 'scenario' && <ScenarioTab draft={draft} set={set} />}

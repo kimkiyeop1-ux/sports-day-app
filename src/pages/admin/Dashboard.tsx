@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import { useEffect, useState } from 'react';
 import { checkRules } from '../../lib/rulesVersion';
@@ -65,6 +65,7 @@ export default function Dashboard() {
 
 /** 대회가 아직 없을 때: 샘플 또는 JSON 파일로 시작 */
 function FirstRun() {
+  const nav = useNavigate();
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
 
@@ -96,8 +97,20 @@ function FirstRun() {
       <h1>대회 시작하기</h1>
       <div className="card stack">
         <p>아직 등록된 대회가 없습니다. 아래 중 하나를 고르세요.</p>
-        <button className="btn-primary" disabled={busy} onClick={() => loadSample().then(start)}>
-          샘플 설정으로 시작 (2학년 8학급, 종목 4개)
+        <button className="btn-primary" disabled={busy} onClick={() =>
+            loadSample()
+              .then((c) => {
+                // 샘플 학교 이름 대신 우리 학교용 기본값으로 시작(계획서를 붙여넣으면 바뀜)
+                const y = new Date().getFullYear();
+                return start({ ...c, id: `${y}-sportsday`, title: `${y} 체육대회`, school: '' });
+              })
+              .then(() => nav('/admin/setup?tab=plan'))
+          }>
+          📄 우리 학교 계획서로 시작
+        </button>
+        <p className="muted small" style={{ margin: 0 }}>샘플로 먼저 만든 뒤, 계획서의 시간표·종목을 붙여넣어 우리 학교 것으로 바꿉니다.</p>
+        <button disabled={busy} onClick={() => loadSample().then(start)}>
+          샘플 설정으로 둘러보기 (2학년 8학급, 종목 4개)
         </button>
         <label className="btn" style={{ marginBottom: 0 }}>
           대회 설정 JSON 파일 가져오기
