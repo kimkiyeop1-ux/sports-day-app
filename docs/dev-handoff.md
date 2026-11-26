@@ -72,6 +72,13 @@
   - 전체 초기화 `resetTournament`: 설정·심판 키만 남기고 모두 삭제(블라인드 문서와 결과 공개본은 같은 묶음에서 삭제해야 규칙 통과). UI는 대회 ID를 직접 입력해야 실행되고 실행 전 JSON 백업 자동 다운로드
   - 보안 규칙 변경 없음(v3)
 
+- ✅ 학교 연결 간소화: `src/pages/Connect.tsx` + `src/lib/setupCheck.ts`
+  - 연결 전: ① 프로젝트 이름(콘솔 주소 붙여넣기도 인식) ② [연결 정보 화면 열기](콘솔 settings/general로 직행) → firebaseConfig 붙여넣기
+  - 연결 후 자동 점검: Firestore(규칙 확인 문서 읽기 → not-found 등=DB 없음, permission-denied=규칙 옛것), 익명 로그인(임시 앱으로 signInAnonymously 후 계정 삭제),
+    Google 로그인·허용 도메인(Identity Toolkit 공개 API `projects?key=`, `accounts:createAuthUri`). ❌마다 정확한 콘솔 URL 버튼, 창 포커스 시 자동 재확인
+  - 실제 Firebase(에뮬레이터 아님)에서 '안 됨' 판정 문구는 오류 코드 기반 추정 — 학교에서 처음 써 볼 때 결과를 꼭 확인할 것(자동 확인 실패 시 ❔ + 버튼은 그대로 표시)
+  - 관리자 로그인 실패 시 원인별 안내 + 학교 연결 화면 링크
+
 ## 다음 할 일(제안)
 - 학교 실제 계획서로 config 만들기 → 리허설 모드로 하루 운영 연습 → 문제 없으면 `npm run release`로 안정판 지정 → 다른 학교 안내
 - 안정판은 현재 2단계 시점(3460cf6)으로 고정되어 있음

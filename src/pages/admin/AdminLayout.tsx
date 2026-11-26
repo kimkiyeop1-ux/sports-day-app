@@ -141,11 +141,23 @@ function NotAdmin() {
 }
 
 function LoginScreen() {
+  const [err, setErr] = useState<string | null>(null);
   const google = async () => {
+    setErr(null);
     try {
       await signInWithPopup(auth, new GoogleAuthProvider());
     } catch (e: any) {
-      alert('로그인 실패: ' + (e.code ?? e.message));
+      const code = String(e?.code ?? '');
+      if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') return;
+      setErr(
+        code === 'auth/unauthorized-domain'
+          ? '이 사이트 주소가 Firebase에 허용되어 있지 않습니다.'
+          : code === 'auth/operation-not-allowed' || code === 'auth/configuration-not-found'
+            ? 'Firebase에서 Google 로그인이 꺼져 있습니다.'
+            : code === 'auth/popup-blocked'
+              ? '팝업이 막혔습니다. 주소창 오른쪽의 팝업 차단 아이콘을 눌러 허용한 뒤 다시 누르세요.'
+              : '로그인 실패: ' + (code || e?.message),
+      );
     }
   };
   return (
@@ -156,6 +168,11 @@ function LoginScreen() {
         <button className="btn-primary" onClick={google}>
           Google 계정으로 로그인
         </button>
+        {err && (
+          <div className="alert alert-danger">
+            {err} <Link to="/connect">학교 연결 화면에서 확인하기 →</Link>
+          </div>
+        )}
         {USE_EMULATOR && (
           <button onClick={() => signInWithEmailAndPassword(auth, 'admin@test.local', 'test1234')}>
             (개발용) 테스트 관리자로 로그인
