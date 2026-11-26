@@ -45,7 +45,14 @@
   - 서버가 PIN을 확인하기 전(지연 반영 상태)에는 심판 화면으로 넘어가지 않게 `!sess.pending` 확인(안 하면 틀린 PIN이 잠깐 통과한 것처럼 보임)
   - 이력: 결과·기록 이력에 `kind/ev/matchId/div`를 남기고 `#/admin/history`에서 되돌리기(되돌리기도 이력에 남음)
   - 규칙 버전 확인은 `meta/{check}`에서 v1·v2 모두 허용(안정판이 v2 규칙을 '최신'으로 인식하도록)
-- ⏳ 4단계: 점수·순위 엔진, 경기 외 점수, 동점 규칙
+- ✅ 4단계: 점수·순위 엔진, 경기 외 점수, 동점 규칙
+  - 엔진 `src/lib/scoring.ts`(테스트 `scoring.test.ts`): 종목 점수 = (byRank[순위-1] + 참가점) × 가중치, 순위 미정 = 0점.
+    공동 순위 점수 `scoring.sharedRankPoints`(same/average, 학년별 종목은 학년마다 인원 계산).
+    총점 = 종목 점수 합 + 경기 외 점수(negative 항목은 뺌). 종합 순위 = 총점 → tieBreakers 순서 → 공동 순위(1,2,2,4)
+  - 동점 규칙 키: mostFirstPlaces / mostSecondPlaces / mostThirdPlaces / eventTotal / event:<종목> / bonus:<항목> (`validate.ts`에서 검사)
+  - 화면 `src/pages/admin/Scores.tsx`(`#/admin/scores`): 모든 종목의 대진표·결과 문서를 `useDocs`로 구독해 관리자 브라우저에서 계산. **총점·순위는 Firestore에 저장하지 않음**(5단계 공개 연출 때 필요한 것만 별도 설계)
+  - 경기 외 점수 `private/bonus` 문서 `v.{항목}.{학급}`, 변경 이력·되돌리기 지원(kind 'bonus')
+  - 보안 규칙 변경 없음(v2 그대로)
 - ⏳ 5단계: 공개/비공개 분리 강화(공개 문서엔 승패만, 블라인드 시 공개본 쓰기 거부), 최종 공개 연출
 - ⏳ 6단계: PWA(오프라인 앱 셸), CSV 내보내기, 리허설 모드·전체 초기화
 

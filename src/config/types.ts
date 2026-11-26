@@ -109,12 +109,20 @@ export interface BonusCategory {
 export interface ScoringConfig {
   bonusCategories: BonusCategory[];
   /**
-   * 동점 처리 규칙(위에서부터 순서대로 적용). 추후 설정.
-   * 'mostFirstPlaces' = 1위 횟수 많은 학급 우선
+   * 총점 동점 처리 규칙(위에서부터 순서대로 적용). 관리자 [점수·순위 → 동점 규칙]에서 바꿀 수 있음.
+   * 'mostFirstPlaces' / 'mostSecondPlaces' / 'mostThirdPlaces' = 종목 1·2·3위 횟수 많은 학급 우선
+   * 'eventTotal'      = 경기 점수(경기 외 점수 제외) 합이 높은 학급 우선
    * 'event:<종목ID>'  = 해당 종목 순위가 높은 학급 우선
+   * 'bonus:<항목ID>'  = 해당 경기 외 점수가 높은(감점 항목은 적은) 학급 우선
    * 마지막까지 같으면 공동 순위
    */
   tieBreakers: string[];
+  /**
+   * 종목에서 공동 순위일 때 순위 점수(기본 same)
+   * 'same'    = 그 순위 점수를 모두 받음(공동 3위 2학급 → 둘 다 3위 점수)
+   * 'average' = 차지한 자리들의 평균(공동 3위 2학급 → (3위+4위)/2)
+   */
+  sharedRankPoints?: 'same' | 'average';
 }
 
 export interface TournamentConfig {

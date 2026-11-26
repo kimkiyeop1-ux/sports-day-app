@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { useAdmin } from './AdminLayout';
 import { useCollection } from '../../data/hooks';
-import { paths, writeMatchResult, writeRecords } from '../../data/store';
+import { paths, writeBonus, writeMatchResult, writeRecords } from '../../data/store';
 import type { MatchResult } from '../../lib/bracket';
 
 interface AuditDoc {
@@ -17,6 +17,7 @@ interface AuditDoc {
   ev?: string;
   matchId?: string;
   div?: string;
+  cat?: string;
 }
 
 const ADMIN = { name: '관리자' };
@@ -54,9 +55,17 @@ export default function History() {
   const audit = useCollection<AuditDoc>(tid ? paths.audit(tid) : null, 'at', 300);
   if (!config || !tid) return <p>먼저 대시보드에서 대회를 시작하세요.</p>;
   const evName = (id?: string) => config.events.find((e) => e.id === id)?.name ?? id ?? '';
-  const list = audit.docs.filter((a) => filter === 'all' || a.kind === 'result' || a.kind === 'records');
+  const list = audit.docs.filter((a) => filter === 'all' || a.kind === 'result' || a.kind === 'records' || a.kind === 'bonus');
 
   const undo = (a: AuditDoc) => {
+    if (a.kind === 'bonus' && a.cat) {
+      const cat = config.scoring.bonusCategories.find((c) => c.id === a.cat) ?? { id: a.cat, name: a.target };
+      if (!confirm(`이 경기 외 점수 변경을 되돌릴까요?\n\n${a.target}`)) return;
+      writeBonus(tid, cat, (parse(a.after) ?? {}) as Record<string, number>, (parse(a.before) ?? {}) as Record<string, number>, '경기 외 점수 되돌리기').catch((e) =>
+        alert('실패: ' + e.message),
+      );
+      return;
+    }
     if (!a.ev) return;
     const ev = { id: a.ev, name: evName(a.ev) };
     const before = parse(a.before);
@@ -77,7 +86,7 @@ export default function History() {
     <>
       <h1>변경 이력</h1>
       <div className="row" style={{ marginBottom: 12 }}>
-        <button className={`btn-sm ${filter === 'results' ? 'btn-primary' : ''}`} onClick={() => setFilter('results')}>경기 결과·기록</button>
+        <button className={`btn-sm ${filter === 'results' ? 'btn-primary' : ''}`} onClick={() => setFilter('results')}>경기 결과·기록·점수</button>
         <button className={`btn-sm ${filter === 'all' ? 'btn-primary' : ''}`} onClick={() => setFilter('all')}>전체</button>
         <span className="muted small grow">최근 300건 · 이력은 지우거나 고칠 수 없습니다</span>
       </div>
@@ -90,7 +99,7 @@ export default function History() {
       ) : (
         <div className="card" style={{ padding: 0 }}>
           {list.map((a) => {
-            const canUndo = (a.kind === 'result' && a.matchId) || (a.kind === 'records' && a.div);
+            const canUndo = (a.kind === 'result' && a.matchId) || (a.kind === 'records' && a.div) || (a.kind === 'bonus' && a.cat);
             const before = parse(a.before);
             const after = parse(a.after);
             return (
@@ -101,7 +110,7 @@ export default function History() {
                     <b>{a.action}</b> · {a.target}
                   </div>
                   {a.kind === 'result' && <div className="small">{resultText(before)} → <b>{resultText(after)}</b></div>}
-                  {a.kind === 'records' && <div className="small">{recordsText(before)} → <b>{recordsText(after)}</b></div>}
+                  {(a.kind === 'records' || a.kind === 'bonus') && <div className="small">{recordsText(before)} → <b>{recordsText(after)}</b></div>}
                   <div className="muted small">입력: {a.actorName}</div>
                 </div>
                 {canUndo && <button className="btn-sm" onClick={() => undo(a)}>되돌리기</button>}

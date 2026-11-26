@@ -423,7 +423,7 @@ function FinalRankCard({ div, rd, records, ev }: { div: Division; rd: ResolvedDi
   const decided = fr.filter((r) => r.rank != null).length;
   return (
     <div className="card">
-      <h3>🔒 종목 순위 <span className="muted small">(관리자만 보임 · 4단계 점수 계산에 사용)</span></h3>
+      <h3>🔒 종목 순위 <span className="muted small">(관리자만 보임 · 점수·순위 계산에 사용)</span></h3>
       <p className="muted small">확정 {decided}/{fr.length}학급. 같은 숫자 = 공동 순위.</p>
       <div className="row">
         {fr.map((r) => (

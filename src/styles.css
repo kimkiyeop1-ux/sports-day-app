@@ -167,3 +167,9 @@ button, .btn { white-space: nowrap; }
 .hist:last-child { border-bottom: 0; }
 .hist-time { font-variant-numeric: tabular-nums; color: var(--muted); width: 108px; flex: none; }
 @media (max-width: 520px) { .hist { flex-wrap: wrap; } .hist-time { width: 100%; } }
+
+/* ===== 점수·순위 ===== */
+.chip-ok { background: var(--ok-weak); color: var(--ok); }
+.tiny { font-size: 11px; }
+.tbl-score td, .tbl-score th { vertical-align: top; }
+.row-gold td { background: #fffbeb; }

@@ -146,7 +146,7 @@ function BasicTab({ draft, set }: TabProps) {
       </div>
       <div className="card">
         <h2>경기 외 점수 항목</h2>
-        <p className="muted small">응원점수·질서점수·감점 등 (점수 입력은 4단계에서 추가됩니다)</p>
+        <p className="muted small">응원점수·질서점수·감점 등 (점수 입력은 [점수·순위 → 경기 외 점수]에서)</p>
         {draft.scoring.bonusCategories.map((b, i) => (
           <div key={b.id} className="row" style={{ marginBottom: 8 }}>
             <input className="grow" value={b.name} onChange={(e) =>
