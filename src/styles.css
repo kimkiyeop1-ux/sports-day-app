@@ -13,9 +13,9 @@
   --danger: #b91c1c;
   --danger-weak: #fee2e2;
   --radius: 12px;
-  /* 글꼴: 본문은 부드러운 고운돋움, 제목·버튼·메뉴는 둥근 주아 */
-  --font-body: 'Gowun Dodum', 'Apple SD Gothic Neo', 'Malgun Gothic', system-ui, sans-serif;
-  --font-fun: 'Jua', 'Gowun Dodum', 'Apple SD Gothic Neo', 'Malgun Gothic', system-ui, sans-serif;
+  /* 글꼴: 본문은 또렷한 Pretendard, 제목·버튼·메뉴는 둥근 나눔스퀘어라운드 */
+  --font-body: 'Pretendard Variable', 'Pretendard', 'Apple SD Gothic Neo', 'Malgun Gothic', system-ui, sans-serif;
+  --font-fun: 'NanumSquareRound', 'Pretendard Variable', 'Apple SD Gothic Neo', 'Malgun Gothic', system-ui, sans-serif;
   color-scheme: light;
 }
 * { box-sizing: border-box; }
@@ -26,15 +26,15 @@ body {
   color: var(--text);
   font-size: 16px;
   line-height: 1.65;
-  letter-spacing: 0.01em;
+  letter-spacing: -0.005em;
   word-break: keep-all;
   -webkit-text-size-adjust: 100%;
 }
 a { color: var(--primary); }
-h1, h2, h3 { font-family: var(--font-fun); font-weight: 400; letter-spacing: 0.02em; line-height: 1.3; margin: 0 0 12px; }
-h1 { font-size: 26px; }
-h2 { font-size: 21px; }
-h3 { font-size: 18px; }
+h1, h2, h3 { font-family: var(--font-fun); font-weight: 800; letter-spacing: 0; line-height: 1.35; margin: 0 0 12px; }
+h1 { font-size: 24px; }
+h2 { font-size: 20px; }
+h3 { font-size: 17px; }
 
 .page { max-width: 880px; margin: 0 auto; padding: 16px 16px 96px; }
 .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; margin-bottom: 12px; }
@@ -50,7 +50,7 @@ li + li { margin-top: 4px; }
 @media (max-width: 520px) { .grid2 { grid-template-columns: 1fr; } }
 
 button, .btn {
-  font: inherit; font-family: var(--font-fun); font-weight: 400; letter-spacing: 0.02em; border: 1px solid var(--line); background: #fff; color: var(--text);
+  font: inherit; font-family: var(--font-fun); font-weight: 700; letter-spacing: 0; border: 1px solid var(--line); background: #fff; color: var(--text);
   border-radius: 10px; padding: 10px 14px; min-height: 44px; cursor: pointer; text-decoration: none;
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
 }
@@ -229,10 +229,12 @@ button, .btn { white-space: nowrap; }
 .setup-fix { margin: 10px 0 0 36px; }
 .setup-fix .btn { align-self: flex-start; }
 
-/* ===== 글꼴(주아)을 쓰는 곳: 굵기 흉내 없이 원래 굵기로 ===== */
+/* ===== 둥근 글꼴(나눔스퀘어라운드)을 쓰는 곳 ===== */
 .nav a, .topbar .title, .badge, .sync, .chip b, .pin, .mb-head, .ko-title, .ko-champ, .score-team, .tbl th,
 .board, .board-title, .board-clock, .board-big, .board-mid, .board-label, .rv, .rv-title, .rv-class, .rv-rank-text, .rv-intro-1, .rv-drum-text, .rv-chip b,
-.mode b, .update-banner { font-family: var(--font-fun); font-weight: 400; letter-spacing: 0.02em; }
-.nav a.active { font-weight: 400; }
+.mode b, .update-banner { font-family: var(--font-fun); font-weight: 700; letter-spacing: 0; }
+.nav a { font-weight: 700; }
+.nav a.active { font-weight: 800; }
+.board-title, .board-clock, .board-big, .board-mid, .rv-class, .rv-rank-text, .rv-intro-1, .rv-drum-text, .ko-champ { font-weight: 800; }
 .badge { font-size: 12.5px; padding: 3px 9px; }
 textarea[style*="monospace"] { letter-spacing: 0; }

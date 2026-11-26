@@ -5,8 +5,8 @@
 ## 사용자
 - 중학교 체육 교사(코딩 초보). 설명은 한국어로 쉽게, 직접 해야 하는 일은 클릭 순서대로 안내.
 - 각 단계가 끝나면 "무엇을 눌러서 확인하면 되는지" 알려줄 것.
-- **모든 답변 끝에 앱 링크를 바로 누를 수 있는 형태(마크다운 링크)로 붙일 것** (복사용 코드 블록 X). 예:
-  [관리자(개발판)](https://kimkiyeop1-ux.github.io/sports-day-app/dev/#/admin) · [앱 첫 화면(개발판)](https://kimkiyeop1-ux.github.io/sports-day-app/dev/) · [안정판](https://kimkiyeop1-ux.github.io/sports-day-app/)
+- **모든 답변 끝에 앱 링크 두 개만, 바로 누를 수 있는 형태(마크다운 링크)로 붙일 것** (복사용 코드 블록 X, 다른 화면 링크는 넣지 않음):
+  [개발판](https://kimkiyeop1-ux.github.io/sports-day-app/dev/) · [안정판](https://kimkiyeop1-ux.github.io/sports-day-app/)
 - Firebase 안내는 메뉴 이름 대신 앱의 [학교 연결] 자동 점검 화면을 쓰게 할 것(메뉴 이름이 실제와 달라 혼란). 휴대폰에서는 규칙 편집 칸이 숨겨지므로 컴퓨터 권장.
 
 ## 확정된 결정 사항
@@ -87,6 +87,9 @@
   - `buildAiPrompt`/`extractJson`/`parseAiConfig`: 아무 AI 채팅용 요청문 → 답(JSON) 정리(코드 블록·끝 쉼표 허용, ID·기본값 채움, 고친 내용 목록). 대회 ID는 현재 것 유지
   - 첫 실행 [📄 우리 학교 계획서로 시작] = `{연도}-sportsday` 대회를 샘플 구조로 만든 뒤 이 탭으로 이동
   - 결정: 앱 내장 AI(Firebase AI Logic/Gemini)는 보류(사용자 선택: 붙여넣기 + AI 도우미)
+
+- 글꼴: 본문 Pretendard(가변, dynamic subset), 제목·버튼·메뉴 나눔스퀘어라운드 — 둘 다 `public/fonts/`에 자체 포함(OFL, 출처 `public/fonts/README.txt`). 서비스 워커가 `/fonts/`를 쓸 때 저장해 오프라인에서도 같은 글꼴.
+  주아(Jua)·고운돋움은 '뭉개져 보이고 눈이 아프다'는 피드백으로 되돌림. 외부 CDN(jsDelivr)은 이 개발 환경에서 막혀 확인 불가라 자체 포함을 택함
 
 ## 다음 할 일(제안)
 - 학교 실제 계획서로 config 만들기 → 리허설 모드로 하루 운영 연습 → 문제 없으면 `npm run release`로 안정판 지정 → 다른 학교 안내
