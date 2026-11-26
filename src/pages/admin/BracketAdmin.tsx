@@ -1,31 +1,43 @@
 // 관리자: 대진표 생성·자리 수정(추첨 결과 입력)·경기 결과 입력
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAdmin } from './AdminLayout';
 import { SyncBadge } from './AdminLayout';
 import type { ClassId, EventConfig, TournamentConfig } from '../../config/types';
 import { FORMAT_LABELS, matchRuleLabel } from '../../config/derive';
-import { useJsonDoc } from '../../data/hooks';
-import { emptyBracket, leaguePointsOf, paths, saveBracket, type BracketData } from '../../data/store';
+import { useDoc, useJsonDoc } from '../../data/hooks';
+import {
+  emptyBracket,
+  leaguePointsOf,
+  paths,
+  readResults,
+  saveBracket,
+  writeMatchResult,
+  writeNote,
+  writeRecords,
+  type BracketData,
+  type Records,
+  type ResultsDoc,
+} from '../../data/store';
 import {
   buildMatches,
-  checkResult,
   createDivision,
   divisionsOf,
   finalRanking,
   groupName,
   hasResult,
-  rankByRecords,
   resolveDivision,
-  setsWon,
   shuffle,
   slotText,
   type Division,
-  type MatchResult,
   type ResolvedDivision,
   type ResolvedMatch,
+  type Results,
   type Slot,
 } from '../../lib/bracket';
 import { GroupsView, HeatsView, KnockoutView, whoText } from '../bracket/BracketView';
+import { RecordEditor, ResultEditor } from '../bracket/Editors';
+
+const ADMIN = { name: '관리자' };
 
 export default function BracketAdmin() {
   const { tid, config } = useAdmin();
@@ -52,21 +64,47 @@ function withoutDiv<T>(obj: Record<string, T>, key: string): Record<string, T> {
   return Object.fromEntries(Object.entries(obj).filter(([k]) => !k.startsWith(key + '-')));
 }
 
+/** 대진표 구조를 바꾸는 저장. reset이 있으면 결과 문서도 통째로 바꾼다 */
+type SaveFn = (
+  update: (d: BracketData) => BracketData,
+  action: string,
+  target: string,
+  before: unknown,
+  after: unknown,
+  reset?: (cur: { results: Results; records: Records }) => { results: Results; records: Records },
+) => Promise<void>;
+
 function EventBracket({ tid, cfg, ev }: { tid: string; cfg: TournamentConfig; ev: EventConfig }) {
   const s = useJsonDoc<BracketData>(paths.bracket(tid, ev.id));
+  const rs = useDoc<ResultsDoc>(paths.results(tid, ev.id));
+  const ns = useDoc<{ n?: Record<string, string> }>(paths.notes(tid, ev.id));
   const data = s.data ?? emptyBracket(ev.id);
   const wanted = divisionsOf(ev, cfg);
+  const legacy = s.data && (Object.keys(s.data.results ?? {}).length || Object.keys(s.data.records ?? {}).length) ? s.data : null;
+  const { results, records } = useMemo(() => readResults(rs.data, legacy), [rs.data, legacy]);
 
   // 빠르게 연달아 저장해도 앞의 변경이 덮어써지지 않도록 '가장 최근 값'에 변경을 적용한다
   const latest = useRef<{ from: BracketData | null; value: BracketData }>({ from: null, value: data });
   if (latest.current.from !== s.data) latest.current = { from: s.data, value: data };
-  const save: SaveFn = (update, action, target, before, after) => {
+  const save: SaveFn = (update, action, target, before, after, reset) => {
     const next = update(latest.current.value);
     latest.current.value = next;
-    return saveBracket(tid, ev, next, { action, target, before, after }).catch((e) => alert('저장 실패: ' + e.message));
+    // 2단계 형식(대진표 문서 안의 결과)이 남아 있으면 이번 저장 때 결과 문서로 옮긴다
+    const cur = { results, records };
+    const rr = reset ? reset(cur) : legacy ? cur : undefined;
+    return saveBracket(tid, ev, next, { action, target, before, after }, rr).catch((e) => alert('저장 실패: ' + e.message));
   };
 
-  if (s.loading) return <p className="muted">불러오는 중…</p>;
+  // 2단계 형식 결과를 한 번 옮겨 둔다(심판이 결과를 볼 수 있도록)
+  const migrated = useRef(false);
+  useEffect(() => {
+    if (legacy && !rs.loading && !migrated.current) {
+      migrated.current = true;
+      save((d) => d, '결과 저장 형식 옮기기(3단계)', '전체', null, null);
+    }
+  }); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (s.loading || rs.loading) return <p className="muted">불러오는 중…</p>;
 
   return (
     <>
@@ -75,7 +113,7 @@ function EventBracket({ tid, cfg, ev }: { tid: string; cfg: TournamentConfig; ev
         <span className="badge">{matchRuleLabel(ev)}</span>
         {ev.location && <span>{ev.location}</span>}
         <span className="grow" />
-        <SyncBadge pending={s.pending} />
+        <SyncBadge pending={s.pending || rs.pending} />
       </div>
       {wanted.map((w) => {
         const div = data.divisions.find((d) => d.key === w.key);
@@ -84,14 +122,16 @@ function EventBracket({ tid, cfg, ev }: { tid: string; cfg: TournamentConfig; ev
           const next = (d0: BracketData): BracketData => ({
             ...d0,
             divisions: [...d0.divisions.filter((d) => d.key !== w.key), nd].sort((a, b) => a.key.localeCompare(b.key)),
-            results: withoutDiv(d0.results, w.key),
-            records: { ...d0.records, [w.key]: {} },
             groupOrder: { ...d0.groupOrder, [w.key]: {} },
           });
-          save(next, div ? '대진표 다시 만들기' : '대진표 만들기', w.title, div ? div.entrants : null, { draw, entrants: nd.entrants });
+          save(next, div ? '대진표 다시 만들기' : '대진표 만들기', w.title, div ? div.entrants : null, { draw, entrants: nd.entrants },
+            (cur) => ({ results: withoutDiv(cur.results, w.key), records: { ...cur.records, [w.key]: {} } }));
         };
         if (!div) return <CreateCard key={w.key} title={w.title} count={w.entrants.length} multi={wanted.length > 1} onCreate={generate} />;
-        return <DivisionPanel key={w.key} ev={ev} div={div} data={data} entrants={w.entrants} multi={wanted.length > 1} save={save} regenerate={generate} />;
+        return (
+          <DivisionPanel key={w.key} tid={tid} ev={ev} div={div} data={data} results={results} records={records[w.key] ?? {}}
+            notes={ns.data?.n ?? {}} entrants={w.entrants} multi={wanted.length > 1} save={save} regenerate={generate} />
+        );
       })}
     </>
   );
@@ -116,12 +156,14 @@ function CreateCard({ title, count, multi, onCreate }: { title: string; count: n
   );
 }
 
-type SaveFn = (update: (d: BracketData) => BracketData, action: string, target: string, before: unknown, after: unknown) => Promise<void>;
-
-function DivisionPanel({ ev, div, data, entrants, multi, save, regenerate }: {
+function DivisionPanel({ tid, ev, div, data, results, records, notes, entrants, multi, save, regenerate }: {
+  tid: string;
   ev: EventConfig;
   div: Division;
   data: BracketData;
+  results: Results;
+  records: Record<ClassId, number>;
+  notes: Record<string, string>;
   entrants: ClassId[];
   multi: boolean;
   save: SaveFn;
@@ -131,10 +173,10 @@ function DivisionPanel({ ev, div, data, entrants, multi, save, regenerate }: {
   const [open, setOpen] = useState<ResolvedMatch | null>(null);
   const lp = leaguePointsOf(ev);
   const order = data.groupOrder[div.key] ?? {};
-  const rd = useMemo(() => resolveDivision(div, data.results, lp, order), [div, data.results, order]); // eslint-disable-line react-hooks/exhaustive-deps
-  const records = data.records[div.key] ?? {};
-  const resultCount = Object.keys(data.results).filter((k) => k.startsWith(div.key + '-') && hasResult(data.results[k])).length
+  const rd = useMemo(() => resolveDivision(div, results, lp, order), [div, results, order]); // eslint-disable-line react-hooks/exhaustive-deps
+  const resultCount = Object.keys(results).filter((k) => k.startsWith(div.key + '-') && hasResult(results[k])).length
     + Object.keys(records).length;
+  const fail = (e: Error) => alert('저장 실패: ' + e.message);
 
   // 대회 설정이 바뀌어 대진표와 맞지 않는지 확인
   const stale =
@@ -142,16 +184,12 @@ function DivisionPanel({ ev, div, data, entrants, multi, save, regenerate }: {
     [...div.entrants].sort().join() !== [...entrants].sort().join() ||
     (div.format !== 'ranking' && div.thirdPlace !== !!ev.format.thirdPlaceMatch);
 
-  const updateDiv = (nd: Division, action: string, before: unknown, after: unknown) => {
-    const next = (d0: BracketData): BracketData => ({
-      ...d0,
-      divisions: d0.divisions.map((d) => (d.key === div.key ? nd : d)),
-      results: withoutDiv(d0.results, div.key),
-      records: { ...d0.records, [div.key]: div.format === 'ranking' ? (d0.records[div.key] ?? {}) : {} },
-      groupOrder: { ...d0.groupOrder, [div.key]: {} },
-    });
-    return save(next, action, div.title, before, after);
-  };
+  const updateDiv = (nd: Division, action: string, before: unknown, after: unknown) =>
+    save(
+      (d0) => ({ ...d0, divisions: d0.divisions.map((d) => (d.key === div.key ? nd : d)), groupOrder: { ...d0.groupOrder, [div.key]: {} } }),
+      action, div.title, before, after,
+      (cur) => ({ results: withoutDiv(cur.results, div.key), records: div.format === 'ranking' ? cur.records : { ...cur.records, [div.key]: {} } }),
+    );
 
   const askRegenerate = () => {
     const warn = resultCount ? `\n\n⚠️ 이미 입력된 결과 ${resultCount}개가 모두 지워집니다.` : '';
@@ -181,8 +219,8 @@ function DivisionPanel({ ev, div, data, entrants, multi, save, regenerate }: {
             setEditing(false);
           }} />
       ) : div.format === 'ranking' ? (
-        <RecordEditor ev={ev} div={div} records={records}
-          onSave={(rec) => save((d0) => ({ ...d0, records: { ...d0.records, [div.key]: rec } }), '기록 입력', div.title, records, rec)} />
+        <RecordEditor div={div} records={records} rankBy={ev.format.rankBy}
+          onSave={(rec) => writeRecords(tid, ev, div.key, div.title, records, rec, ADMIN).catch(fail)} />
       ) : (
         <>
           {div.groups.length > 0 && (
@@ -207,16 +245,13 @@ function DivisionPanel({ ev, div, data, entrants, multi, save, regenerate }: {
       <FinalRankCard div={div} rd={rd} records={records} ev={ev} />
 
       {open && (
-        <ResultEditor ev={ev} m={rd.byId[open.id] ?? open} rd={rd} prev={data.results[open.id]} onClose={() => setOpen(null)}
-          onSave={(r, action) => {
+        <ResultEditor rule={ev.match} ruleLabel={matchRuleLabel(ev)} m={rd.byId[open.id] ?? open} rd={rd} prev={results[open.id]}
+          note={notes[open.id]} showNote onClose={() => setOpen(null)}
+          onSave={(r, action, note) => {
             const m = rd.byId[open.id];
-            const id = open.id;
-            save((d0) => {
-              const results = { ...d0.results };
-              if (r) results[id] = r;
-              else delete results[id];
-              return { ...d0, results };
-            }, action, `${div.title} ${m.label} (${whoText(m.sideA)} vs ${whoText(m.sideB)})`, data.results[open.id] ?? null, r);
+            const target = `${div.title} ${m.label} (${whoText(m.sideA)} vs ${whoText(m.sideB)})`;
+            writeMatchResult(tid, ev, open.id, target, action, results[open.id] ?? null, r, ADMIN).catch(fail);
+            if (note !== undefined && note !== (notes[open.id] ?? '')) writeNote(tid, ev.id, open.id, note).catch(fail);
             setOpen(null);
           }} />
       )}
@@ -381,40 +416,6 @@ function TieOrder({ rd, g, manual, onSave, onReset }: { rd: ResolvedDivision; g:
   );
 }
 
-// ---------------- 순위제 기록 입력 ----------------
-
-function RecordEditor({ ev, div, records, onSave }: { ev: EventConfig; div: Division; records: Record<ClassId, number>; onSave: (r: Record<ClassId, number>) => void }) {
-  const rankBy = ev.format.rankBy ?? 'rank';
-  const [text, setText] = useState<Record<ClassId, string>>(() => Object.fromEntries(div.entrants.map((c) => [c, records[c] != null ? String(records[c]) : ''])));
-  const parsed: Record<ClassId, number> = {};
-  for (const [c, v] of Object.entries(text)) if (v.trim() !== '' && !Number.isNaN(Number(v))) parsed[c] = Number(v);
-  const bad = Object.entries(text).filter(([, v]) => v.trim() !== '' && Number.isNaN(Number(v))).map(([c]) => c);
-  const ranks = Object.fromEntries(rankByRecords(div.entrants, parsed, rankBy).map((r) => [r.id, r.rank]));
-  const dirty = JSON.stringify(parsed) !== JSON.stringify(Object.fromEntries(Object.entries(records).filter(([, v]) => v != null)));
-  const label = rankBy === 'rank' ? '순위(1, 2, 3…)' : rankBy === 'record_low' ? '기록 (낮을수록 높은 순위 · 예: 52.3초)' : '기록 (높을수록 높은 순위 · 예: 횟수)';
-  return (
-    <div className="card stack">
-      <h3>결과 입력</h3>
-      <p className="muted small">{label}. 비워 두면 아직 안 뛴 것으로 봅니다. 순서를 바꾸려면 [자리 수정]에서 조를 바꾸세요.</p>
-      {div.heats.map((h, i) => (
-        <div key={i}>
-          {div.heats.length > 1 && <div className="small"><b>{i + 1}조</b></div>}
-          {h.map((c) => (
-            <div key={c} className="row" style={{ marginBottom: 6 }}>
-              <b style={{ width: 52 }}>{c}</b>
-              <input className="grow" inputMode="decimal" value={text[c] ?? ''} onChange={(e) => setText({ ...text, [c]: e.target.value })}
-                style={{ maxWidth: 160 }} aria-label={`${c} 기록`} />
-              {rankBy !== 'rank' && <span className="muted small">{ranks[c] ? `→ ${ranks[c]}위` : ''}</span>}
-            </div>
-          ))}
-        </div>
-      ))}
-      {bad.length > 0 && <div className="alert alert-danger">숫자가 아닌 값: {bad.join(', ')}</div>}
-      <button className="btn-primary" disabled={!dirty || bad.length > 0} onClick={() => onSave(parsed)}>기록 저장</button>
-    </div>
-  );
-}
-
 // ---------------- 종목 순위(관리자 전용) ----------------
 
 function FinalRankCard({ div, rd, records, ev }: { div: Division; rd: ResolvedDivision; records: Record<ClassId, number>; ev: EventConfig }) {
@@ -430,138 +431,6 @@ function FinalRankCard({ div, rd, records, ev }: { div: Division; rd: ResolvedDi
             {r.rank != null ? `${r.rank}위` : '미정'} · <b>{r.id}</b>
           </span>
         ))}
-      </div>
-    </div>
-  );
-}
-
-// ---------------- 경기 결과 입력 ----------------
-
-function ResultEditor({ ev, m, rd, prev, onSave, onClose }: {
-  ev: EventConfig;
-  m: ResolvedMatch;
-  rd: ResolvedDivision;
-  prev?: MatchResult;
-  onSave: (r: MatchResult | null, action: string) => void;
-  onClose: () => void;
-}) {
-  const isSets = ev.match.mode === 'sets';
-  const need = ev.match.setsToWin ?? 2;
-  const maxSets = need * 2 - 1;
-  const has = hasResult(prev);
-  const [a, setA] = useState(has && prev?.a != null ? String(prev.a) : '');
-  const [b, setB] = useState(has && prev?.b != null ? String(prev.b) : '');
-  const [sets, setSets] = useState<[string, string][]>(() => {
-    const s = (has && prev?.sets) || [];
-    return Array.from({ length: maxSets }, (_, i) => (s[i] ? [String(s[i][0]), String(s[i][1])] : ['', '']));
-  });
-  const [forfeit, setForfeit] = useState<'' | 'a' | 'b'>((has && prev?.forfeit) || '');
-  const [tb, setTb] = useState<'' | 'a' | 'b'>((has && prev?.tbWinner) || '');
-  const [note, setNote] = useState(prev?.note ?? '');
-
-  const A = whoText(m.sideA);
-  const B = whoText(m.sideB);
-  const drawAllowed = m.stage === 'group' && !isSets && !!ev.match.allowDraw;
-
-  // 입력값 → 결과
-  const filledSets = sets.filter(([x, y]) => x !== '' && y !== '').map(([x, y]) => [Number(x), Number(y)] as [number, number]);
-  let na = a === '' ? undefined : Number(a);
-  let nb = b === '' ? undefined : Number(b);
-  if (isSets && filledSets.length) [na, nb] = setsWon(filledSets);
-  const isTie = !forfeit && na != null && nb != null && na === nb && !isSets;
-  const r: MatchResult = {
-    ...(forfeit ? { forfeit } : { a: na, b: nb }),
-    ...(isSets && filledSets.length && !forfeit ? { sets: filledSets } : {}),
-    ...(isTie && tb ? { tbWinner: tb } : {}),
-    ...(note.trim() ? { note: note.trim() } : {}),
-    ...(prev?.replays ? { replays: prev.replays } : {}),
-    at: Date.now(),
-  };
-  const err = checkResult(ev.match, r, drawAllowed);
-
-  // 이 경기 결과에 따라 정해지는 다음 경기에 이미 결과가 있으면 경고
-  const downstream = rd.matches.filter((x) => [x.a, x.b].some((s) => (s.t === 'win' || s.t === 'lose') && s.m === m.id) && x.result);
-  const confirmDownstream = () =>
-    !downstream.length || confirm(`다음 경기(${downstream.map((x) => x.label).join(', ')})에 이미 결과가 있습니다.\n승자가 바뀌면 그 경기 결과도 확인하세요. 계속할까요?`);
-
-  const submit = () => {
-    if (err) return;
-    if (has && !confirmDownstream()) return;
-    onSave(r, has ? '경기 결과 수정' : '경기 결과 입력');
-  };
-
-  return (
-    <div className="modal-back" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="경기 결과 입력">
-        <div className="row">
-          <h2 className="grow" style={{ margin: 0 }}>{m.label}</h2>
-          <button className="btn-sm" onClick={onClose} aria-label="닫기">✕</button>
-        </div>
-        <p className="muted small">{matchRuleLabel(ev)}{prev?.replays ? ` · 재경기 ${prev.replays}회째` : ''}</p>
-
-        <div className="score-row">
-          <div className="score-team">{A}</div>
-          <input inputMode="numeric" value={isSets && filledSets.length ? String(na ?? '') : a} disabled={!!forfeit || (isSets && filledSets.length > 0)}
-            onChange={(e) => setA(e.target.value.replace(/[^0-9]/g, ''))} aria-label={`${A} 점수`} />
-          <span>:</span>
-          <input inputMode="numeric" value={isSets && filledSets.length ? String(nb ?? '') : b} disabled={!!forfeit || (isSets && filledSets.length > 0)}
-            onChange={(e) => setB(e.target.value.replace(/[^0-9]/g, ''))} aria-label={`${B} 점수`} />
-          <div className="score-team">{B}</div>
-        </div>
-        {isSets && <p className="muted small" style={{ textAlign: 'center' }}>이긴 세트 수를 넣거나, 아래에 세트별 점수를 넣으세요(선택).</p>}
-
-        {isSets && !forfeit && (
-          <details open={filledSets.length > 0}>
-            <summary className="small">세트별 점수</summary>
-            {sets.map(([x, y], i) => (
-              <div key={i} className="score-row small-row">
-                <div className="score-team small">{i + 1}세트</div>
-                <input inputMode="numeric" value={x} onChange={(e) => setSets(sets.map((s, j) => (j === i ? [e.target.value.replace(/[^0-9]/g, ''), s[1]] : s)))} aria-label={`${i + 1}세트 ${A}`} />
-                <span>:</span>
-                <input inputMode="numeric" value={y} onChange={(e) => setSets(sets.map((s, j) => (j === i ? [s[0], e.target.value.replace(/[^0-9]/g, '')] : s)))} aria-label={`${i + 1}세트 ${B}`} />
-                <div className="score-team" />
-              </div>
-            ))}
-          </details>
-        )}
-
-        {isTie && (
-          <div className="item">
-            <div className="small"><b>동점입니다.</b> {drawAllowed ? '무승부로 기록하거나, ' : ''}승부차기·추첨 등으로 이긴 쪽을 고르세요.</div>
-            <div className="row" style={{ marginTop: 6 }}>
-              {drawAllowed && <button className={`btn-sm ${tb === '' ? 'btn-primary' : ''}`} onClick={() => setTb('')}>무승부</button>}
-              <button className={`btn-sm ${tb === 'a' ? 'btn-primary' : ''}`} onClick={() => setTb('a')}>{A} 승</button>
-              <button className={`btn-sm ${tb === 'b' ? 'btn-primary' : ''}`} onClick={() => setTb('b')}>{B} 승</button>
-            </div>
-          </div>
-        )}
-
-        <div className="field" style={{ marginTop: 10 }}>
-          <label>기권</label>
-          <select value={forfeit} onChange={(e) => setForfeit(e.target.value as '' | 'a' | 'b')}>
-            <option value="">기권 없음</option>
-            <option value="a">{A} 기권 → {B} 승</option>
-            <option value="b">{B} 기권 → {A} 승</option>
-          </select>
-        </div>
-        <div className="field">
-          <label>메모 (관리자만 보임)</label>
-          <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="예: 우천으로 3세트 생략" />
-        </div>
-
-        {err && (na != null || nb != null || filledSets.length > 0) && <div className="alert alert-danger">{err}</div>}
-
-        <button className="btn-primary" style={{ width: '100%', fontSize: 18 }} disabled={!!err} onClick={submit}>
-          {has ? '결과 수정 저장' : '결과 저장'}
-        </button>
-        {has && (
-          <div className="row" style={{ marginTop: 8 }}>
-            <button className="grow" onClick={() => confirmDownstream() && confirm('이 경기를 재경기로 처리할까요? 지금 결과는 이력에 남고, 경기 전 상태로 돌아갑니다.') &&
-              onSave({ replays: (prev?.replays ?? 0) + 1, at: Date.now() }, '재경기 처리')}>🔁 재경기</button>
-            <button className="grow btn-danger" onClick={() => confirmDownstream() && confirm('잘못 입력한 결과를 지울까요?') &&
-              onSave(prev?.replays ? { replays: prev.replays, at: Date.now() } : null, '경기 결과 삭제')}>결과 지우기</button>
-          </div>
-        )}
       </div>
     </div>
   );

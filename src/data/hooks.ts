@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { collection, doc, limit as qlimit, onSnapshot, orderBy, query } from 'firebase/firestore';
 import { onAuthStateChanged, type User } from 'firebase/auth';
 import { auth, db, isConfigured } from '../lib/firebase';
 import { parseJsonDoc, paths, type JsonDoc } from './store';
@@ -82,4 +82,23 @@ export function useJsonDoc<T>(path: string | null): DocState<T> {
   const s = useDoc<JsonDoc>(path);
   const data = useMemo(() => parseJsonDoc<T>(s.data), [s.data?.json]); // eslint-disable-line react-hooks/exhaustive-deps
   return { ...s, data };
+}
+
+/** 컬렉션(여러 문서)을 실시간 구독. orderField를 주면 그 값의 내림차순으로 최대 max개 */
+export function useCollection<T>(path: string | null, orderField?: string, max = 200): { docs: (T & { id: string })[]; loading: boolean; error: string | null } {
+  const [s, setS] = useState<{ docs: (T & { id: string })[]; loading: boolean; error: string | null }>({ docs: [], loading: true, error: null });
+  useEffect(() => {
+    if (!path || !isConfigured) {
+      setS({ docs: [], loading: false, error: null });
+      return;
+    }
+    const ref = collection(db, path);
+    const q = orderField ? query(ref, orderBy(orderField, 'desc'), qlimit(max)) : query(ref, qlimit(max));
+    return onSnapshot(
+      q,
+      (snap) => setS({ docs: snap.docs.map((d) => ({ ...(d.data() as T), id: d.id })), loading: false, error: null }),
+      (err) => setS({ docs: [], loading: false, error: err.code ?? err.message }),
+    );
+  }, [path, orderField, max]);
+  return s;
 }

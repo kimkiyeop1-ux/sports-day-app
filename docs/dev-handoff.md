@@ -34,7 +34,17 @@
   - 순위제 종목은 config `format.rankBy`(rank / record_low / record_high) 추가
   - 보안 규칙은 바뀌지 않음(RULES_VERSION 1 그대로). 대진표 관련 규칙 테스트만 추가
   - 3단계 참고: 지금은 관리자만 결과를 입력. 심판 입력을 붙일 때는 결과를 종목별 별도 문서(예: `results_{종목}`)로 분리하고 규칙에서 PIN 세션을 확인하는 방식 권장(심판이 대진 구조를 바꾸지 못하게)
-- ⏳ 3단계: 심판 링크+PIN(익명 로그인 + refereeSessions + 규칙에서 PIN 대조), 실시간, 오프라인, 이력·되돌리기
+- ✅ 3단계: 심판 링크+PIN, 실시간, 오프라인, 이력·되돌리기 (규칙 버전 2)
+  - 결과 저장 위치 변경: `public/results_{종목}` 문서 하나에 `r.{경기ID}` = 결과 JSON 문자열, `rec.{대진단위}` = 순위제 기록.
+    경기마다 칸이 따로라 여러 심판이 동시에 써도 덮어쓰지 않음(`setDoc` + `mergeFields`). `"{}"` = 지운 결과.
+    2단계 형식(대진표 문서 안 results/records)은 관리자 대진표 화면을 열면 자동으로 옮겨짐(`readResults`가 두 형식을 합쳐 읽음)
+  - 관리자 메모는 `private/notes_{종목}` (공개 안 됨)
+  - 심판: `private/referee.keys[종목] = {token, pin}` → 심판이 `refSessions/{uid}`에 `{ev, token, pin, name}`을 쓰면 규칙이 대조.
+    결과 쓰기·이력 쓰기 때마다 세션의 token·pin이 현재 값과 같은지 다시 확인 → PIN을 새로 만들면 예전 기기 즉시 차단
+  - 심판 화면 `src/pages/referee/Referee.tsx` (익명 로그인, 공개 문서만 읽음 — 배점 코드 없음). 결과 입력 창은 `src/pages/bracket/Editors.tsx` 공용
+  - 서버가 PIN을 확인하기 전(지연 반영 상태)에는 심판 화면으로 넘어가지 않게 `!sess.pending` 확인(안 하면 틀린 PIN이 잠깐 통과한 것처럼 보임)
+  - 이력: 결과·기록 이력에 `kind/ev/matchId/div`를 남기고 `#/admin/history`에서 되돌리기(되돌리기도 이력에 남음)
+  - 규칙 버전 확인은 `meta/{check}`에서 v1·v2 모두 허용(안정판이 v2 규칙을 '최신'으로 인식하도록)
 - ⏳ 4단계: 점수·순위 엔진, 경기 외 점수, 동점 규칙
 - ⏳ 5단계: 공개/비공개 분리 강화(공개 문서엔 승패만, 블라인드 시 공개본 쓰기 거부), 최종 공개 연출
 - ⏳ 6단계: PWA(오프라인 앱 셸), CSV 내보내기, 리허설 모드·전체 초기화
@@ -43,7 +53,7 @@
 - 공개 화면은 `tournaments/{t}/public/*` 와 `meta/active` 만 읽는다. 여기에 총점·순위·종목별 획득 점수를 절대 쓰지 않는다.
 - 관리자 데이터는 `private/*`, 이력은 `audit/*`(추가만, 수정 불가).
 - 공개 데이터는 종목당 문서 1개처럼 묶어서 읽기 횟수(무료 한도 5만/일)를 아낀다.
-- 규칙을 바꾸면 `firestore.rules`의 `rulesCheck_v숫자`와 `src/lib/rulesVersion.ts`의 `RULES_VERSION`을 함께 올리고, `tests/rules`에 테스트를 추가한다.
+- 규칙을 바꾸면 `firestore.rules`의 `rulesCheck_v` 목록에 새 번호를 추가하고 `src/lib/rulesVersion.ts`의 `RULES_VERSION`을 함께 올리고, `tests/rules`에 테스트를 추가한다.
 - 관리자 화면 코드는 lazy import로 분리해 전광판 번들에 배점 관련 코드가 섞이지 않게 한다.
 
 ## 개발 환경 메모

@@ -28,9 +28,9 @@ export default function Home() {
           <b>📋 대진표 · 경기 결과</b>
           <span className="muted">종목별 대진표와 경기 결과 (로그인 없음, 학생·학부모 공유용)</span>
         </Link>
-        <div className="mode" style={{ opacity: 0.6 }}>
+        <div className="mode">
           <b>🧑‍⚖️ 심판 입력</b>
-          <span className="muted">관리자가 나눠 준 종목별 링크(QR)로 들어옵니다. (3단계에서 추가)</span>
+          <span className="muted">관리자가 나눠 준 종목별 링크(QR)를 열고 이름과 PIN 6자리를 넣으면 됩니다.</span>
         </div>
       </div>
     </div>

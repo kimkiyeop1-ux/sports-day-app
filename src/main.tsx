@@ -10,6 +10,9 @@ const Dashboard = lazy(() => import('./pages/admin/Dashboard'));
 const SetupEditor = lazy(() => import('./pages/admin/SetupEditor'));
 const ScenarioRun = lazy(() => import('./pages/admin/ScenarioRun'));
 const BracketAdmin = lazy(() => import('./pages/admin/BracketAdmin'));
+const RefereeAdmin = lazy(() => import('./pages/admin/RefereeAdmin'));
+const History = lazy(() => import('./pages/admin/History'));
+const Referee = lazy(() => import('./pages/referee/Referee'));
 const PublicBracket = lazy(() => import('./pages/bracket/PublicBracket'));
 const Connect = lazy(() => import('./pages/Connect'));
 import Board from './pages/board/Board';
@@ -26,10 +29,13 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           <Route path="setup" element={<SetupEditor />} />
           <Route path="scenario" element={<ScenarioRun />} />
           <Route path="bracket" element={<BracketAdmin />} />
+          <Route path="referee" element={<RefereeAdmin />} />
+          <Route path="history" element={<History />} />
         </Route>
         <Route path="/board" element={<Board />} />
         <Route path="/bracket" element={<PublicBracket />} />
         <Route path="/bracket/:eventId" element={<PublicBracket />} />
+        <Route path="/ref/:eventId/:token" element={<Referee />} />
         <Route path="/connect" element={<Connect />} />
         <Route path="*" element={<Home />} />
       </Routes>

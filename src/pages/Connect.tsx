@@ -188,7 +188,7 @@ function Connected() {
             {copied === 'board' ? '✓ 복사됨' : '복사'}
           </button>
         </div>
-        <p className="muted small">심판 입력 링크(종목별 QR)는 3단계에서 관리자 화면에 추가됩니다.</p>
+        <p className="muted small">심판 입력 링크(종목별 QR·PIN)는 관리자 화면의 [심판 링크]에서 만듭니다.</p>
       </div>
 
       {!USE_EMULATOR && (

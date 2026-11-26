@@ -1,0 +1,115 @@
+// 관리자: 변경 이력(누가 언제 무엇을 바꿨는지) + 경기 결과·기록 되돌리기
+import { useState } from 'react';
+import { useAdmin } from './AdminLayout';
+import { useCollection } from '../../data/hooks';
+import { paths, writeMatchResult, writeRecords } from '../../data/store';
+import type { MatchResult } from '../../lib/bracket';
+
+interface AuditDoc {
+  at: number;
+  actor: string;
+  actorName: string;
+  action: string;
+  target: string;
+  before: string;
+  after: string;
+  kind?: string;
+  ev?: string;
+  matchId?: string;
+  div?: string;
+}
+
+const ADMIN = { name: '관리자' };
+
+function parse(s: string): unknown {
+  try {
+    return JSON.parse(s);
+  } catch {
+    return null;
+  }
+}
+
+/** 경기 결과를 짧은 글로 */
+export function resultText(r: unknown): string {
+  const x = r as MatchResult | null;
+  if (!x || (x.forfeit == null && (x.a == null || x.b == null))) return x?.replays ? `경기 전(재경기 ${x.replays})` : '결과 없음';
+  if (x.forfeit) return x.forfeit === 'a' ? '왼쪽 기권' : '오른쪽 기권';
+  return `${x.a} : ${x.b}${x.tbWinner && x.a === x.b ? (x.tbWinner === 'a' ? ' (왼쪽 승)' : ' (오른쪽 승)') : ''}${x.sets?.length ? ` [${x.sets.map((s) => s.join('-')).join(', ')}]` : ''}`;
+}
+
+function recordsText(r: unknown): string {
+  const x = (r ?? {}) as Record<string, number>;
+  const e = Object.entries(x);
+  return e.length ? e.map(([c, v]) => `${c} ${v}`).join(', ') : '기록 없음';
+}
+
+function time(ms: number): string {
+  const d = new Date(ms);
+  return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
+}
+
+export default function History() {
+  const { tid, config } = useAdmin();
+  const [filter, setFilter] = useState<'results' | 'all'>('results');
+  const audit = useCollection<AuditDoc>(tid ? paths.audit(tid) : null, 'at', 300);
+  if (!config || !tid) return <p>먼저 대시보드에서 대회를 시작하세요.</p>;
+  const evName = (id?: string) => config.events.find((e) => e.id === id)?.name ?? id ?? '';
+  const list = audit.docs.filter((a) => filter === 'all' || a.kind === 'result' || a.kind === 'records');
+
+  const undo = (a: AuditDoc) => {
+    if (!a.ev) return;
+    const ev = { id: a.ev, name: evName(a.ev) };
+    const before = parse(a.before);
+    const after = parse(a.after);
+    const target = a.target.replace(/^.*? · /, '');
+    if (a.kind === 'result' && a.matchId) {
+      if (!confirm(`이 변경을 되돌릴까요?\n\n${a.target}\n${resultText(after)} → ${resultText(before)}`)) return;
+      writeMatchResult(tid, ev, a.matchId, target, '되돌리기', after, before, ADMIN).catch((e) => alert('실패: ' + e.message));
+    } else if (a.kind === 'records' && a.div) {
+      if (!confirm(`이 기록 변경을 되돌릴까요?\n\n${a.target}`)) return;
+      writeRecords(tid, ev, a.div, target, (after ?? {}) as Record<string, number>, (before ?? {}) as Record<string, number>, ADMIN).catch((e) =>
+        alert('실패: ' + e.message),
+      );
+    }
+  };
+
+  return (
+    <>
+      <h1>변경 이력</h1>
+      <div className="row" style={{ marginBottom: 12 }}>
+        <button className={`btn-sm ${filter === 'results' ? 'btn-primary' : ''}`} onClick={() => setFilter('results')}>경기 결과·기록</button>
+        <button className={`btn-sm ${filter === 'all' ? 'btn-primary' : ''}`} onClick={() => setFilter('all')}>전체</button>
+        <span className="muted small grow">최근 300건 · 이력은 지우거나 고칠 수 없습니다</span>
+      </div>
+      {audit.loading ? (
+        <p className="muted">불러오는 중…</p>
+      ) : audit.error ? (
+        <div className="alert alert-danger">이력을 불러오지 못했습니다: {audit.error}</div>
+      ) : list.length === 0 ? (
+        <div className="card muted">아직 기록이 없습니다.</div>
+      ) : (
+        <div className="card" style={{ padding: 0 }}>
+          {list.map((a) => {
+            const canUndo = (a.kind === 'result' && a.matchId) || (a.kind === 'records' && a.div);
+            const before = parse(a.before);
+            const after = parse(a.after);
+            return (
+              <div key={a.id} className="hist">
+                <div className="hist-time">{time(a.at)}</div>
+                <div className="grow">
+                  <div>
+                    <b>{a.action}</b> · {a.target}
+                  </div>
+                  {a.kind === 'result' && <div className="small">{resultText(before)} → <b>{resultText(after)}</b></div>}
+                  {a.kind === 'records' && <div className="small">{recordsText(before)} → <b>{recordsText(after)}</b></div>}
+                  <div className="muted small">입력: {a.actorName}</div>
+                </div>
+                {canUndo && <button className="btn-sm" onClick={() => undo(a)}>되돌리기</button>}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </>
+  );
+}
