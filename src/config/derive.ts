@@ -23,10 +23,10 @@ export function classLabel(classId: ClassId): string {
 }
 
 export const FORMAT_LABELS: Record<string, string> = {
-  single_elim: '싱글 토너먼트',
-  round_robin: '리그(풀리그)',
-  groups_knockout: '조별리그+토너먼트',
-  ranking: '순위제',
+  single_elim: '토너먼트 (지면 탈락)',
+  round_robin: '리그 (모든 반과 한 번씩)',
+  groups_knockout: '조별 리그 → 토너먼트',
+  ranking: '기록으로 순위 (계주·줄넘기 등)',
 };
 
 export function matchRuleLabel(ev: EventConfig): string {

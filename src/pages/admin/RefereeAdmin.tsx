@@ -12,17 +12,15 @@ export default function RefereeAdmin() {
   const keys = useDoc<RefKeysDoc>(tid ? paths.refKeys(tid) : null);
   const sessions = useCollection<RefSessionDoc>(tid ? paths.refSessions(tid) : null);
   const bl = useDoc<BlindDoc>(tid ? paths.blind(tid) : null);
-  if (!config || !tid) return <p>먼저 대시보드에서 대회를 시작하세요.</p>;
+  if (!config || !tid) return <p>먼저 홈에서 대회를 시작하세요.</p>;
   if (keys.loading) return <p className="muted">불러오는 중…</p>;
   return (
     <>
-      <h1>심판 링크 · PIN</h1>
-      <div className="card muted small stack">
-        <p style={{ margin: 0 }}>
-          종목마다 <b>링크 1개 + 6자리 PIN</b>을 만들어 심판 선생님께 보내세요. 링크를 열고 이름과 PIN을 넣으면 그 종목의 결과만 입력할 수 있습니다.
-        </p>
-        <p style={{ margin: 0 }}>링크와 PIN을 따로 보내면 더 안전합니다(예: 링크는 메신저, PIN은 말로). [새로 만들기]를 누르면 예전 링크·PIN으로 들어온 기기는 모두 다시 PIN을 넣어야 합니다.</p>
-      </div>
+      <h1>심판 링크</h1>
+      <p className="page-intro">
+        종목마다 <b>링크</b>와 <b>비밀번호 6자리(PIN)</b>를 만들어 심판 선생님께 보내요. 심판 선생님은 폰으로 링크를 열고 이름과 PIN만 넣으면
+        그 종목 결과를 넣을 수 있어요. PIN이 새어 나가면 [새로 만들기]를 누르세요.
+      </p>
       {config.events.map((ev) => (
         <EventKey key={ev.id} tid={tid} ev={ev} k={keys.data?.keys?.[ev.id]} blind={isBlind(bl.data, ev.id)}
           names={sessions.docs.filter((s) => s.ev === ev.id && keys.data?.keys?.[ev.id]?.token === s.token && keys.data?.keys?.[ev.id]?.pin === s.pin).map((s) => s.name)} />
@@ -81,7 +79,7 @@ export function EventKey({ tid, ev, k, names, blind = false, linkPath, who = '�
       ) : (
         <>
           <div className="row">
-            <span className="muted small">PIN</span>
+            <span className="muted small">비밀번호(PIN)</span>
             <b className="pin">{k.pin}</b>
           </div>
           <div className="row">
@@ -90,7 +88,7 @@ export function EventKey({ tid, ev, k, names, blind = false, linkPath, who = '�
           <div className="row">
             <button className="btn-sm" onClick={() => link && copy(link, 'link')}>{copied === 'link' ? '✅ 복사됨' : '링크 복사'}</button>
             <button className="btn-sm" onClick={() => link && copy(`[${ev.name} ${who}]\n${link}\nPIN: ${k.pin}`, 'msg')}>
-              {copied === 'msg' ? '✅ 복사됨' : '안내문 복사(링크+PIN)'}
+              {copied === 'msg' ? '✅ 복사됨' : '메시지로 보낼 글 복사'}
             </button>
             <button className="btn-sm" onClick={() => setShowQr(!showQr)}>{showQr ? 'QR 닫기' : 'QR 코드'}</button>
             <span className="grow" />
@@ -99,7 +97,7 @@ export function EventKey({ tid, ev, k, names, blind = false, linkPath, who = '�
           {showQr && qr && (
             <div style={{ textAlign: 'center' }}>
               <img src={qr} alt={`${ev.name} ${who} 링크 QR`} width={240} height={240} />
-              <div className="muted small">휴대폰 카메라로 찍으면 바로 열립니다. PIN은 따로 알려 주세요.</div>
+              <div className="muted small">휴대폰 카메라로 찍으면 바로 열려요. 비밀번호는 따로 알려 주세요.</div>
             </div>
           )}
           {names.length > 0 && <p className="muted small" style={{ margin: 0 }}>접속한 {who}: {names.join(', ')}</p>}

@@ -54,15 +54,15 @@ export default function History() {
   const [filter, setFilter] = useState<'results' | 'all'>('results');
   const audit = useCollection<AuditDoc>(tid ? paths.audit(tid) : null, 'at', 300);
   const bl = useDoc<BlindDoc>(tid ? paths.blind(tid) : null);
-  if (!config || !tid) return <p>먼저 대시보드에서 대회를 시작하세요.</p>;
+  if (!config || !tid) return <p>먼저 홈에서 대회를 시작하세요.</p>;
   const evName = (id?: string) => config.events.find((e) => e.id === id)?.name ?? id ?? '';
   const list = audit.docs.filter((a) => filter === 'all' || a.kind === 'result' || a.kind === 'records' || a.kind === 'bonus');
 
   const undo = (a: AuditDoc) => {
     if (a.kind === 'bonus' && a.cat) {
       const cat = config.scoring.bonusCategories.find((c) => c.id === a.cat) ?? { id: a.cat, name: a.target };
-      if (!confirm(`이 경기 외 점수 변경을 되돌릴까요?\n\n${a.target}`)) return;
-      writeBonus(tid, cat, (parse(a.after) ?? {}) as Record<string, number>, (parse(a.before) ?? {}) as Record<string, number>, '경기 외 점수 되돌리기').catch((e) =>
+      if (!confirm(`이 응원·질서 점수 변경을 되돌릴까요?\n\n${a.target}`)) return;
+      writeBonus(tid, cat, (parse(a.after) ?? {}) as Record<string, number>, (parse(a.before) ?? {}) as Record<string, number>, '응원·질서 점수 되돌리기').catch((e) =>
         alert('실패: ' + e.message),
       );
       return;
@@ -85,11 +85,12 @@ export default function History() {
 
   return (
     <>
-      <h1>변경 이력</h1>
+      <h1>고친 기록</h1>
+      <p className="page-intro">누가 언제 무엇을 넣고 바꿨는지 보여 줘요. 잘못 넣은 결과는 [되돌리기]로 원래대로 돌릴 수 있어요.</p>
       <div className="row" style={{ marginBottom: 12 }}>
-        <button className={`btn-sm ${filter === 'results' ? 'btn-primary' : ''}`} onClick={() => setFilter('results')}>경기 결과·기록·점수</button>
+        <button className={`btn-sm ${filter === 'results' ? 'btn-primary' : ''}`} onClick={() => setFilter('results')}>경기 결과·점수만</button>
         <button className={`btn-sm ${filter === 'all' ? 'btn-primary' : ''}`} onClick={() => setFilter('all')}>전체</button>
-        <span className="muted small grow">최근 300건 · 이력은 지우거나 고칠 수 없습니다</span>
+        <span className="muted small grow">최근 300개까지 보여요</span>
       </div>
       {audit.loading ? (
         <p className="muted">불러오는 중…</p>

@@ -238,3 +238,23 @@ button, .btn { white-space: nowrap; }
 .board-title, .board-clock, .board-big, .board-mid, .rv-class, .rv-rank-text, .rv-intro-1, .rv-drum-text, .ko-champ { font-weight: 800; }
 .badge { font-size: 12.5px; padding: 3px 9px; }
 textarea[style*="monospace"] { letter-spacing: 0; }
+
+/* ===== 더보기 ===== */
+.more-h { margin: 22px 0 10px; font-size: 18px; }
+.more-list { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+.more-item { display: flex; gap: 12px; align-items: center; padding: 14px 16px; border-bottom: 1px solid var(--line); color: var(--text); text-decoration: none; flex-wrap: wrap; }
+.more-item:last-child { border-bottom: 0; }
+.more-item b { font-family: var(--font-fun); font-size: 16px; }
+.more-item p { margin: 2px 0 0; color: var(--muted); font-size: 14px; }
+.more-link:hover { background: var(--primary-weak); }
+.more-link > span { font-size: 24px; color: var(--muted); }
+.page-intro { color: var(--muted); margin: -4px 0 16px; }
+
+/* ===== 홈 단계 ===== */
+.step-link { display: flex; gap: 12px; align-items: center; padding: 14px 16px; border-bottom: 1px solid var(--line); color: var(--text); text-decoration: none; }
+.step-link:last-child { border-bottom: 0; }
+.step-link:hover { background: var(--primary-weak); }
+.step-link b { display: block; font-family: var(--font-fun); font-size: 16px; }
+.step-link .grow > span { display: block; color: var(--muted); font-size: 14px; }
+.step-icon { font-size: 22px; width: 30px; text-align: center; flex: none; }
+.step-arrow { font-size: 24px; color: var(--muted); }

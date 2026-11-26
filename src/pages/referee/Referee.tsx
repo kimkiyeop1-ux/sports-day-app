@@ -155,9 +155,9 @@ function RefBoard({ tid, eventId, name, onRevoked }: { tid: string; eventId: str
         </div>
       </div>
       <div className="page">
-        <p className="muted small">입력자: <b>{name}</b> · 입력한 결과는 바로 전광판·공개 대진표에 반영되고, 변경 이력이 남습니다.</p>
+        <p className="muted small">입력자: <b>{name}</b> · 넣은 결과는 바로 학생 화면에 나오고, 누가 넣었는지 기록돼요.</p>
         {!online && <div className="alert alert-warn">인터넷이 끊겼습니다. 입력은 이 기기에 저장되었다가 다시 연결되면 자동으로 전송됩니다.</div>}
-        {blind && <div className="alert alert-warn">🙈 블라인드 중: 입력한 결과는 공개 화면에 바로 나오지 않고 폐회식 때 공개됩니다. 입력은 평소처럼 하세요.</div>}
+        {blind && <div className="alert alert-warn">🙈 지금은 결과를 숨기는 중이에요. 넣은 결과는 폐회식 때 공개돼요. 평소처럼 넣으면 돼요.</div>}
         {br.loading || rs.loading || bl.loading || hs.loading ? (
           <p className="muted">불러오는 중…</p>
         ) : !data || data.divisions.length === 0 ? (

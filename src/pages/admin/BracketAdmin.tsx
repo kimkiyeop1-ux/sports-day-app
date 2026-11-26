@@ -1,5 +1,6 @@
 // 관리자: 대진표 생성·자리 수정(추첨 결과 입력)·경기 결과 입력
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useAdmin } from './AdminLayout';
 import { SyncBadge } from './AdminLayout';
 import type { ClassId, EventConfig, TournamentConfig } from '../../config/types';
@@ -44,11 +45,15 @@ const ADMIN = { name: '관리자' };
 export default function BracketAdmin() {
   const { tid, config } = useAdmin();
   const [evId, setEvId] = useState<string | null>(null);
-  if (!config || !tid) return <p>먼저 대시보드에서 대회를 시작하세요.</p>;
+  if (!config || !tid) return <p>먼저 홈에서 대회를 시작하세요.</p>;
   const ev = config.events.find((e) => e.id === evId) ?? config.events[0];
   return (
     <>
-      <h1>대진표 · 경기 결과</h1>
+      <div className="row" style={{ marginBottom: 4 }}>
+        <h1 className="grow" style={{ margin: 0 }}>경기</h1>
+        <Link className="btn btn-sm" to="/admin/referee">🧑‍⚖️ 심판 링크 보내기</Link>
+      </div>
+      <p className="page-intro">종목을 고르면 대진표가 나와요. 경기 칸을 누르면 결과를 넣거나 고칠 수 있어요. 보통은 심판 선생님이 폰으로 넣어요.</p>
       <div className="row" style={{ marginBottom: 12 }}>
         {config.events.map((e) => (
           <button key={e.id} className={`btn-sm ${e.id === ev?.id ? 'btn-primary' : ''}`} onClick={() => setEvId(e.id)}>
@@ -56,7 +61,7 @@ export default function BracketAdmin() {
           </button>
         ))}
       </div>
-      {ev ? <EventBracket key={ev.id} tid={tid} cfg={config} ev={ev} /> : <p>종목이 없습니다. 대회 설정에서 종목을 추가하세요.</p>}
+      {ev ? <EventBracket key={ev.id} tid={tid} cfg={config} ev={ev} /> : <p>종목이 없어요. [⚙️ 설정]에서 종목을 추가하세요.</p>}
     </>
   );
 }
@@ -93,7 +98,7 @@ function EventBracket({ tid, cfg, ev }: { tid: string; cfg: TournamentConfig; ev
   if (latest.current.from !== s.data) latest.current = { from: s.data, value: data };
   const save: SaveFn = (update, action, target, before, after, reset) => {
     if (blind && (reset || legacy)) {
-      alert('블라인드 중에는 대진표를 다시 만들거나 자리를 바꿀 수 없습니다. [블라인드·최종 공개]에서 결과를 공개한 뒤 하세요.');
+      alert('결과를 숨기는 중에는 대진표를 다시 만들거나 자리를 바꿀 수 없어요. [🎉 순위 발표]에서 결과를 보여 준 뒤 하세요.');
       return Promise.resolve();
     }
     const next = update(latest.current.value);
@@ -126,7 +131,7 @@ function EventBracket({ tid, cfg, ev }: { tid: string; cfg: TournamentConfig; ev
       </div>
       {blind && (
         <div className="alert alert-warn">
-          🙈 <b>블라인드 중</b>입니다. 지금부터 입력하는 결과는 공개 대진표에 나오지 않고, [블라인드·최종 공개]에서 [결과 공개]를 누를 때 한꺼번에 공개됩니다.
+          🙈 <b>결과를 숨기는 중</b>이에요. 지금 넣는 결과는 학생 화면에 안 나오고, [🎉 순위 발표]에서 [결과 보여 주기]를 누르면 한꺼번에 나와요.
         </div>
       )}
       {wanted.map((w) => {
