@@ -3,7 +3,7 @@
 import { useMemo } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useActiveTournament, useDoc, useJsonDoc, useOnline } from '../../data/hooks';
-import { paths, readResults, type PublicBracketData, type ResultsDoc } from '../../data/store';
+import { isBlind, paths, readResults, type BlindDoc, type PublicBracketData, type ResultsDoc } from '../../data/store';
 import type { PublicInfo } from '../../config/derive';
 import { resolveDivision } from '../../lib/bracket';
 import { isConfigured } from '../../lib/firebase';
@@ -18,6 +18,7 @@ export default function PublicBracket() {
   const ev = events.find((e) => e.id === eventId) ?? events[0];
   const br = useJsonDoc<PublicBracketData>(tid && ev ? paths.publicBracket(tid, ev.id) : null);
   const rs = useDoc<ResultsDoc>(tid && ev ? paths.results(tid, ev.id) : null);
+  const bl = useDoc<BlindDoc>(tid ? paths.blind(tid) : null);
   const online = useOnline();
 
   if (!isConfigured) return <div className="page">학교 Firebase가 연결되지 않았습니다. <Link to="/connect">학교 연결</Link></div>;
@@ -37,6 +38,9 @@ export default function PublicBracket() {
         ))}
       </div>
       {ev && <p className="muted small">{ev.matchLabel}{ev.location ? ` · ${ev.location}` : ''}</p>}
+      {ev && isBlind(bl.data, ev.id) && (
+        <div className="alert alert-warn">🙈 이 종목은 지금부터 결과를 공개하지 않습니다. 남은 결과는 폐회식에서 함께 발표합니다!</div>
+      )}
       {info.loading || br.loading || rs.loading ? (
         <p className="muted">불러오는 중…</p>
       ) : !br.data || br.data.divisions.length === 0 ? (

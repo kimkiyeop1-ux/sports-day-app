@@ -14,6 +14,9 @@
 //  tournaments/{t}/private/referee        관리자 종목별 심판 링크 토큰·PIN
 //  tournaments/{t}/refSessions/{uid}      심판   PIN 확인된 심판 기기(이름 포함)
 //  tournaments/{t}/private/bonus          관리자 경기 외 점수(응원·질서·감점)
+//  tournaments/{t}/public/blind           공개   블라인드 중인 종목 표시(결과 공개본 쓰기 금지)
+//  tournaments/{t}/hidden/results_{종목}  관리자·그 종목 심판  블라인드 중 결과
+//  tournaments/{t}/reveal/{all|g2}        관리자·공개 진행자  최종 순위 발표 자료
 //  tournaments/{t}/audit/{id}          관리자 변경 이력(추가만 가능)
 // =============================================================
 import { collection, doc, FieldPath, writeBatch, type WriteBatch } from 'firebase/firestore';
@@ -39,7 +42,14 @@ export const paths = {
   refSessions: (t: string) => `tournaments/${t}/refSessions`,
   refSession: (t: string, uid: string) => `tournaments/${t}/refSessions/${uid}`,
   bonus: (t: string) => `tournaments/${t}/private/bonus`,
+  blind: (t: string) => `tournaments/${t}/public/blind`,
+  hidden: (t: string, ev: string) => `tournaments/${t}/hidden/results_${ev}`,
+  revealCol: (t: string) => `tournaments/${t}/reveal`,
+  reveal: (t: string, scope: string) => `tournaments/${t}/reveal/${scope}`,
 };
+
+/** 공개 진행자(최종 순위 발표) 링크·PIN이 저장되는 키(종목 ID는 '_'로 시작할 수 없어 겹치지 않음) */
+export const PRESENTER = '_presenter';
 
 export interface ConfigDoc {
   config: TournamentConfig;
@@ -218,19 +228,32 @@ export interface ResultsDoc {
 }
 
 /** 결과 문서 → 결과·기록. (2단계 때 대진표 문서에 저장된 예전 결과가 있으면 합친다) */
-export function readResults(doc: ResultsDoc | null, legacy?: { results?: Results; records?: Records } | null): { results: Results; records: Records } {
+export function readResults(
+  doc: ResultsDoc | null,
+  legacy?: { results?: Results; records?: Records } | null,
+  /** 블라인드 중 결과(관리자·심판만). 공개본보다 우선 */
+  hidden?: ResultsDoc | null,
+): { results: Results; records: Records } {
   const results: Results = { ...(legacy?.results ?? {}) };
-  for (const [k, v] of Object.entries(doc?.r ?? {})) {
-    try {
-      results[k] = JSON.parse(v);
-    } catch {
-      /* 무시 */
-    }
-  }
   const records: Records = { ...(legacy?.records ?? {}) };
-  for (const [k, v] of Object.entries(doc?.rec ?? {})) records[k] = v ?? {};
+  for (const d of [doc, hidden]) {
+    for (const [k, v] of Object.entries(d?.r ?? {})) {
+      try {
+        results[k] = JSON.parse(v);
+      } catch {
+        /* 무시 */
+      }
+    }
+    for (const [k, v] of Object.entries(d?.rec ?? {})) records[k] = v ?? {};
+  }
   return { results, records };
 }
+
+export interface BlindDoc {
+  events?: Record<string, boolean>;
+  updatedAt?: number;
+}
+export const isBlind = (b: BlindDoc | null | undefined, ev: string) => !!b?.events?.[ev];
 
 export interface Actor {
   /** 이력에 남는 이름(관리자 / 심판 선생님 이름) */
@@ -247,11 +270,13 @@ export function writeMatchResult(
   before: unknown,
   after: unknown,
   actor: Actor,
+  /** 블라인드 중이면 true → 숨김 문서에 저장 */
+  hidden = false,
 ): Promise<void> {
   const b = writeBatch(db);
   const now = Date.now();
   b.set(
-    doc(db, paths.results(t, ev.id)),
+    doc(db, hidden ? paths.hidden(t, ev.id) : paths.results(t, ev.id)),
     { r: { [matchId]: JSON.stringify(after ?? {}) }, updatedAt: now },
     { mergeFields: [new FieldPath('r', matchId), 'updatedAt'] },
   );
@@ -275,11 +300,12 @@ export function writeRecords(
   before: Record<ClassId, number>,
   after: Record<ClassId, number>,
   actor: Actor,
+  hidden = false,
 ): Promise<void> {
   const b = writeBatch(db);
   const now = Date.now();
   b.set(
-    doc(db, paths.results(t, ev.id)),
+    doc(db, hidden ? paths.hidden(t, ev.id) : paths.results(t, ev.id)),
     { rec: { [div]: after }, updatedAt: now },
     { mergeFields: [new FieldPath('rec', div), 'updatedAt'] },
   );
@@ -329,12 +355,12 @@ function randomPin(): string {
 }
 
 /** 종목 심판 링크·PIN 새로 만들기(예전 링크·PIN·심판 기기는 모두 무효가 됨) */
-export function createRefKey(t: string, ev: { id: string; name: string }, prev: RefKey | undefined): Promise<void> {
+export function createRefKey(t: string, ev: { id: string; name: string }, prev: RefKey | undefined, blind = false): Promise<void> {
   const key: RefKey = { token: randomToken(), pin: randomPin() };
   const b = writeBatch(db);
   b.set(doc(db, paths.refKeys(t)), { keys: { [ev.id]: key } }, { mergeFields: [new FieldPath('keys', ev.id)] });
-  // 심판이 결과를 쓸 문서가 미리 있어야 한다(심판은 '수정'만 가능)
-  b.set(doc(db, paths.results(t, ev.id)), { updatedAt: Date.now() }, { merge: true });
+  // 심판이 결과를 쓸 문서가 미리 있어야 한다(심판은 '수정'만 가능). 블라인드 중이거나 진행자 키면 건너뜀
+  if (!blind && ev.id !== PRESENTER) b.set(doc(db, paths.results(t, ev.id)), { updatedAt: Date.now() }, { merge: true });
   addAudit(b, t, {
     action: prev ? '심판 링크·PIN 새로 만들기' : '심판 링크·PIN 만들기',
     target: ev.name,
@@ -365,5 +391,67 @@ export function writeBonus(
   const b = writeBatch(db);
   b.set(doc(db, paths.bonus(t)), { v: { [cat.id]: after }, updatedAt: Date.now() }, { mergeFields: [new FieldPath('v', cat.id), 'updatedAt'] });
   addAudit(b, t, { action, target: cat.name, before, after, extra: { kind: 'bonus', cat: cat.id } });
+  return b.commit();
+}
+
+// =============================================================
+// 블라인드 · 최종 공개 (5단계)
+// =============================================================
+
+/** 블라인드 켜기: 이 순간부터 결과는 hidden/ 에 쌓이고 공개 화면은 지금 상태에서 멈춘다 */
+export function blindOn(t: string, evs: { id: string; name: string }[]): Promise<void> {
+  const b = writeBatch(db);
+  const now = Date.now();
+  b.set(
+    doc(db, paths.blind(t)),
+    { events: Object.fromEntries(evs.map((e) => [e.id, true])), updatedAt: now },
+    { mergeFields: [...evs.map((e) => new FieldPath('events', e.id)), 'updatedAt'] },
+  );
+  addAudit(b, t, { action: '블라인드 켜기', target: evs.map((e) => e.name).join(', '), before: null, after: null, extra: { kind: 'blind' } });
+  return b.commit();
+}
+
+/** 결과 공개(블라인드 끄기): 숨겨 둔 결과를 공개본에 옮기고 숨김 문서를 지운다. 규칙상 반드시 한 묶음이어야 한다 */
+export function blindOff(t: string, evs: { id: string; name: string; hidden: ResultsDoc | null }[]): Promise<void> {
+  const b = writeBatch(db);
+  const now = Date.now();
+  b.set(
+    doc(db, paths.blind(t)),
+    { events: Object.fromEntries(evs.map((e) => [e.id, false])), updatedAt: now },
+    { mergeFields: [...evs.map((e) => new FieldPath('events', e.id)), 'updatedAt'] },
+  );
+  for (const e of evs) {
+    const r = e.hidden?.r ?? {};
+    const rec = e.hidden?.rec ?? {};
+    const fields = [...Object.keys(r).map((k) => new FieldPath('r', k)), ...Object.keys(rec).map((k) => new FieldPath('rec', k))];
+    if (fields.length) b.set(doc(db, paths.results(t, e.id)), { r, rec, updatedAt: now }, { mergeFields: [...fields, 'updatedAt'] });
+    b.delete(doc(db, paths.hidden(t, e.id)));
+  }
+  addAudit(b, t, { action: '결과 공개(블라인드 끄기)', target: evs.map((e) => e.name).join(', '), before: null, after: null, extra: { kind: 'blind' } });
+  return b.commit();
+}
+
+export interface RevealRow {
+  rank: number;
+  id: ClassId;
+  shared: boolean;
+  /** showScores일 때만 */
+  total?: number;
+}
+export interface RevealDoc {
+  scope: string; // 'all' | 'g2' …
+  title: string; // '전교' | '2학년'
+  rows: RevealRow[]; // 1위부터
+  showScores: boolean;
+  /** 이 순위까지만 발표(예: 3 → 3위부터 1위까지). 0 = 전체 */
+  topN: number;
+  complete: boolean;
+  at: number;
+}
+
+export function writeReveal(t: string, d: RevealDoc): Promise<void> {
+  const b = writeBatch(db);
+  b.set(doc(db, paths.reveal(t, d.scope)), d);
+  addAudit(b, t, { action: '최종 순위 발표 자료 만들기', target: d.title, before: null, after: { rows: d.rows.length, complete: d.complete }, extra: { kind: 'reveal' } });
   return b.commit();
 }

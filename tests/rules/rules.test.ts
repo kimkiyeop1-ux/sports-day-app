@@ -10,7 +10,7 @@ import {
   initializeTestEnvironment,
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
-import { doc, getDoc, setDoc, updateDoc, deleteDoc, collection, getDocs } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, deleteDoc, collection, getDocs, writeBatch } from 'firebase/firestore';
 
 const T = 'tournaments/2026-sample';
 let env: RulesTestEnvironment;
@@ -105,10 +105,11 @@ describe('최초 관리자 등록', () => {
 
 describe('규칙 버전 확인', () => {
   it('누구나 규칙 버전 확인 문서를 읽을 수 있고, 쓸 수는 없다', async () => {
+    await assertSucceeds(getDoc(doc(anon(), 'meta/rulesCheck_v3')));
     await assertSucceeds(getDoc(doc(anon(), 'meta/rulesCheck_v2')));
     // 안정판(예전 버전) 앱도 이 규칙을 최신으로 인식
     await assertSucceeds(getDoc(doc(anon(), 'meta/rulesCheck_v1')));
-    await assertFails(getDoc(doc(anon(), 'meta/rulesCheck_v3')));
+    await assertFails(getDoc(doc(anon(), 'meta/rulesCheck_v4')));
     await assertFails(setDoc(doc(admin(), 'meta/rulesCheck_v2'), { x: 1 }));
   });
 });
@@ -228,5 +229,64 @@ describe('심판 링크 + PIN (3단계)', () => {
     await setDoc(doc(ref(), `${T}/refSessions/ref1`), session());
     await assertSucceeds(getDocs(collection(admin(), `${T}/refSessions`)));
     await assertFails(getDocs(collection(ref(), `${T}/refSessions`)));
+  });
+});
+
+describe('블라인드·최종 공개 (5단계)', () => {
+  const KEY = `${T}/private/referee`;
+  const RES = `${T}/public/results_dodgeball`;
+  const HID = `${T}/hidden/results_dodgeball`;
+  const BLIND = `${T}/public/blind`;
+  const REV = `${T}/reveal/all`;
+  const dev = (uid: string) => env.authenticatedContext(uid, { firebase: { sign_in_provider: 'anonymous' } } as any).firestore();
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, KEY), { keys: { dodgeball: { token: 'tokA', pin: '123456' }, _presenter: { token: 'tokP', pin: '777777' } } });
+      await setDoc(doc(db, RES), { r: {}, rec: {}, updatedAt: 1 });
+      await setDoc(doc(db, BLIND), { events: { dodgeball: true } });
+      await setDoc(doc(db, REV), { rows: [{ id: '2-1', rank: 1 }] });
+    });
+    await setDoc(doc(dev('ref1'), `${T}/refSessions/ref1`), { ev: 'dodgeball', token: 'tokA', pin: '123456', name: '심판', at: 1 });
+    await setDoc(doc(dev('mc'), `${T}/refSessions/mc`), { ev: '_presenter', token: 'tokP', pin: '777777', name: '진행', at: 1 });
+  });
+
+  it('블라인드 중에는 심판도 관리자도 공개 결과를 고칠 수 없다', async () => {
+    await assertFails(updateDoc(doc(dev('ref1'), RES), { 'r.m1': '{"a":1,"b":0}', updatedAt: 2 }));
+    await assertFails(updateDoc(doc(admin(), RES), { 'r.m1': '{"a":1,"b":0}', updatedAt: 2 }));
+  });
+  it('블라인드 중 결과는 숨김 문서에 쓰고, 학생·다른 사람은 읽을 수 없다', async () => {
+    await assertSucceeds(setDoc(doc(dev('ref1'), HID), { r: { m1: '{"a":1,"b":0}' }, updatedAt: 2 }));
+    await assertSucceeds(getDoc(doc(dev('ref1'), HID)));
+    await assertSucceeds(getDoc(doc(admin(), HID)));
+    await assertFails(getDoc(doc(anon(), HID)));
+    await assertFails(getDoc(doc(stranger(), HID)));
+    await assertFails(getDoc(doc(dev('mc'), HID)));
+    await assertFails(setDoc(doc(dev('ref1'), HID), { r: {}, hacked: 1 }));
+  });
+  it('블라인드는 관리자만 켜고 끌 수 있다', async () => {
+    await assertFails(setDoc(doc(dev('ref1'), BLIND), { events: {} }));
+    await assertFails(setDoc(doc(anon(), BLIND), { events: {} }));
+    await assertSucceeds(getDoc(doc(anon(), BLIND)));
+  });
+  it('[결과 공개]: 블라인드 해제와 같은 묶음이면 관리자가 공개본에 옮길 수 있다', async () => {
+    const db = admin();
+    const b = writeBatch(db);
+    b.set(doc(db, BLIND), { events: { dodgeball: false } });
+    b.set(doc(db, RES), { r: { m1: '{"a":1,"b":0}' }, rec: {}, updatedAt: 3 });
+    await assertSucceeds(b.commit());
+    // 해제 뒤에는 심판도 다시 공개본에 입력 가능
+    await assertSucceeds(updateDoc(doc(dev('ref1'), RES), { 'r.m2': '{"a":2,"b":0}', updatedAt: 4 }));
+  });
+  it('최종 순위 자료는 관리자와 공개 진행자만 읽는다', async () => {
+    await assertSucceeds(getDoc(doc(admin(), REV)));
+    await assertSucceeds(getDoc(doc(dev('mc'), REV)));
+    await assertFails(getDoc(doc(dev('ref1'), REV)));
+    await assertFails(getDoc(doc(anon(), REV)));
+    await assertFails(setDoc(doc(dev('mc'), REV), { rows: [] }));
+  });
+  it('공개 진행자는 경기 결과를 쓸 수 없다', async () => {
+    await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), BLIND), { events: {} }));
+    await assertFails(updateDoc(doc(dev('mc'), RES), { 'r.m1': '{}', updatedAt: 5 }));
   });
 });

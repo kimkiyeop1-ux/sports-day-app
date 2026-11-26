@@ -27,6 +27,16 @@ service cloud.firestore {
       return signedIn() && s.ev == ev && s.token == k.token && s.pin == k.pin;
     }
 
+    // 블라인드: public/blind 문서의 events.{종목} == true 이면 그 종목 결과의 '공개본'은 아무도 고칠 수 없다.
+    // (결과는 hidden/ 에 쌓였다가 [결과 공개] 때 블라인드 해제와 '같은 묶음'으로 공개본에 옮겨진다 → getAfter 사용)
+    function blindOn(t, ev) {
+      let p = /databases/$(database)/documents/tournaments/$(t)/public/blind;
+      return existsAfter(p) && getAfter(p).data.get('events', {}).get(ev, false) == true;
+    }
+    function resultsEv(docId) {
+      return docId.replace('^results_', '');
+    }
+
     // 관리자 = meta/admins 문서의 uids 목록에 있는 계정 (Firebase 콘솔에서만 수정 가능)
     function isAdmin() {
       return signedIn()
@@ -54,18 +64,34 @@ service cloud.firestore {
     // 예전 번호를 남겨 두는 이유: 안정판(예전 버전) 앱도 이 규칙을 '최신'으로 인식하게 하려고.
     // (규칙이 예전 앱과 호환되지 않게 바뀌면 그때는 예전 번호를 빼야 한다)
     match /meta/{check} {
-      allow read: if check in ['rulesCheck_v1', 'rulesCheck_v2'];
+      allow read: if check in ['rulesCheck_v1', 'rulesCheck_v2', 'rulesCheck_v3'];
     }
 
     match /tournaments/{t} {
       // 공개용 문서: 누구나 읽기, 관리자만 쓰기
       match /public/{docId} {
         allow read: if true;
-        allow write: if isAdmin();
+        // 블라인드 중인 종목의 결과 공개본은 관리자도 고칠 수 없다
+        allow write: if isAdmin() && !(docId.matches('results_.+') && blindOn(t, resultsEv(docId)));
         // 심판: 자기 종목의 경기 결과 문서(public/results_{종목})의 결과·기록 칸만 고칠 수 있다
         allow update: if docId.matches('results_.+')
-          && isReferee(t, docId.replace('^results_', ''))
+          && isReferee(t, resultsEv(docId))
+          && !blindOn(t, resultsEv(docId))
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['r', 'rec', 'updatedAt']);
+      }
+
+      // 블라인드 중 결과: 관리자와 그 종목 심판만 읽고 쓴다
+      match /hidden/{docId} {
+        allow read: if isAdmin() || (docId.matches('results_.+') && isReferee(t, resultsEv(docId)));
+        allow create, update: if isAdmin() || (docId.matches('results_.+') && isReferee(t, resultsEv(docId))
+          && request.resource.data.keys().hasOnly(['r', 'rec', 'updatedAt']));
+        allow delete: if isAdmin();
+      }
+
+      // 최종 공개 자료(순위): 관리자와 '공개 진행자'(진행자 링크 + PIN)만 읽는다
+      match /reveal/{scope} {
+        allow read: if isAdmin() || isReferee(t, '_presenter');
+        allow write: if isAdmin();
       }
 
       // 심판 세션: 링크 토큰 + PIN이 맞아야 만들 수 있다. 자기 것만 읽기 가능.
