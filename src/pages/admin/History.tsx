@@ -1,8 +1,8 @@
 // 관리자: 변경 이력(누가 언제 무엇을 바꿨는지) + 경기 결과·기록 되돌리기
 import { useState } from 'react';
 import { useAdmin } from './AdminLayout';
-import { useCollection } from '../../data/hooks';
-import { paths, writeBonus, writeMatchResult, writeRecords } from '../../data/store';
+import { useCollection, useDoc } from '../../data/hooks';
+import { isBlind, paths, writeBonus, writeMatchResult, writeRecords, type BlindDoc } from '../../data/store';
 import type { MatchResult } from '../../lib/bracket';
 
 interface AuditDoc {
@@ -53,6 +53,7 @@ export default function History() {
   const { tid, config } = useAdmin();
   const [filter, setFilter] = useState<'results' | 'all'>('results');
   const audit = useCollection<AuditDoc>(tid ? paths.audit(tid) : null, 'at', 300);
+  const bl = useDoc<BlindDoc>(tid ? paths.blind(tid) : null);
   if (!config || !tid) return <p>먼저 대시보드에서 대회를 시작하세요.</p>;
   const evName = (id?: string) => config.events.find((e) => e.id === id)?.name ?? id ?? '';
   const list = audit.docs.filter((a) => filter === 'all' || a.kind === 'result' || a.kind === 'records' || a.kind === 'bonus');
@@ -73,10 +74,10 @@ export default function History() {
     const target = a.target.replace(/^.*? · /, '');
     if (a.kind === 'result' && a.matchId) {
       if (!confirm(`이 변경을 되돌릴까요?\n\n${a.target}\n${resultText(after)} → ${resultText(before)}`)) return;
-      writeMatchResult(tid, ev, a.matchId, target, '되돌리기', after, before, ADMIN).catch((e) => alert('실패: ' + e.message));
+      writeMatchResult(tid, ev, a.matchId, target, '되돌리기', after, before, ADMIN, isBlind(bl.data, a.ev)).catch((e) => alert('실패: ' + e.message));
     } else if (a.kind === 'records' && a.div) {
       if (!confirm(`이 기록 변경을 되돌릴까요?\n\n${a.target}`)) return;
-      writeRecords(tid, ev, a.div, target, (after ?? {}) as Record<string, number>, (before ?? {}) as Record<string, number>, ADMIN).catch((e) =>
+      writeRecords(tid, ev, a.div, target, (after ?? {}) as Record<string, number>, (before ?? {}) as Record<string, number>, ADMIN, isBlind(bl.data, a.ev)).catch((e) =>
         alert('실패: ' + e.message),
       );
     }

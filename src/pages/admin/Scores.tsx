@@ -42,7 +42,7 @@ export default function Scores() {
   const { tid, config, done } = useAdmin();
   const [tab, setTab] = useState<Tab>('rank');
   const evPaths = useMemo(
-    () => (tid && config ? config.events.flatMap((e) => [paths.bracket(tid, e.id), paths.results(tid, e.id)]) : []),
+    () => (tid && config ? config.events.flatMap((e) => [paths.bracket(tid, e.id), paths.results(tid, e.id), paths.hidden(tid, e.id)]) : []),
     [tid, config],
   );
   const docs = useDocs<JsonDoc | ResultsDoc>(evPaths);
@@ -76,13 +76,18 @@ export default function Scores() {
 }
 
 /** 종목별 최종 순위(대진단위를 모두 합침) + 진행 현황 */
-function useEventRanks(tid: string, config: TournamentConfig, docs: Record<string, unknown>) {
+export function useEventRanks(tid: string, config: TournamentConfig, docs: Record<string, unknown>) {
   return useMemo(() => {
     const ranksByEvent: Record<string, FinalRank[]> = {};
     const status: EventStatus[] = [];
     for (const ev of config.events) {
       const bracket = parseJsonDoc<BracketData>(docs[paths.bracket(tid, ev.id)] as JsonDoc | null);
-      const { results, records } = readResults((docs[paths.results(tid, ev.id)] as ResultsDoc | null) ?? null, bracket);
+      // 블라인드 중 결과(hidden)까지 합쳐서 계산 — 관리자는 실제 순위를 알아야 하므로
+      const { results, records } = readResults(
+        (docs[paths.results(tid, ev.id)] as ResultsDoc | null) ?? null,
+        bracket,
+        (docs[paths.hidden(tid, ev.id)] as ResultsDoc | null) ?? null,
+      );
       const wanted = divisionsOf(ev, config);
       const list: FinalRank[] = [];
       let stale = false;

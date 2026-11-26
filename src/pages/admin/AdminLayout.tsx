@@ -71,6 +71,7 @@ export default function AdminLayout() {
           <NavLink to="/admin/bracket">대진표</NavLink>
           <NavLink to="/admin/referee">심판 링크</NavLink>
           <NavLink to="/admin/scores">점수·순위</NavLink>
+          <NavLink to="/admin/reveal">블라인드·공개</NavLink>
           <NavLink to="/admin/history">변경 이력</NavLink>
           <NavLink to="/admin/setup">대회 설정</NavLink>
           <a href="#/board" target="_blank" rel="noreferrer">

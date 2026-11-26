@@ -8,10 +8,12 @@ import { signInAnonymously } from 'firebase/auth';
 import { auth, db, isConfigured } from '../../lib/firebase';
 import { useActiveTournament, useAuthUser, useDoc, useJsonDoc, useOnline } from '../../data/hooks';
 import {
+  isBlind,
   paths,
   readResults,
   writeMatchResult,
   writeRecords,
+  type BlindDoc,
   type PublicBracketData,
   type RefSessionDoc,
   type ResultsDoc,
@@ -25,7 +27,7 @@ const NAME_KEY = 'sportsday.refName';
 
 // 익명 로그인은 한 번만(화면이 다시 그려져도 새 계정이 생기지 않도록)
 let anonSignIn: Promise<unknown> | null = null;
-function ensureAnon(): Promise<unknown> {
+export function ensureAnon(): Promise<unknown> {
   if (!anonSignIn) anonSignIn = signInAnonymously(auth).catch((e) => {
     anonSignIn = null;
     throw e;
@@ -63,11 +65,11 @@ export default function Referee() {
   return <RefBoard tid={tid} eventId={eventId} name={sess.data!.name} onRevoked={() => setRevoked(true)} />;
 }
 
-function PinForm({ tid, uid, eventId, token, revoked, onDone }: {
-  tid: string; uid: string; eventId: string; token: string; revoked: boolean; onDone: () => void;
+export function PinForm({ tid, uid, eventId, token, revoked, onDone, title, heading = '🧑‍⚖️ 심판 입력' }: {
+  tid: string; uid: string; eventId: string; token: string; revoked: boolean; onDone: () => void; title?: string; heading?: string;
 }) {
   const info = useDoc<PublicInfo>(paths.publicInfo(tid));
-  const evName = info.data?.events.find((e) => e.id === eventId)?.name ?? eventId;
+  const evName = title ?? info.data?.events.find((e) => e.id === eventId)?.name ?? eventId;
   const [name, setName] = useState(() => {
     try {
       return localStorage.getItem(NAME_KEY) ?? '';
@@ -101,7 +103,7 @@ function PinForm({ tid, uid, eventId, token, revoked, onDone }: {
 
   return (
     <div className="page" style={{ maxWidth: 480 }}>
-      <h1>🧑‍⚖️ 심판 입력</h1>
+      <h1>{heading}</h1>
       <div className="card stack">
         <p style={{ fontSize: 20, margin: 0 }}><b>{evName}</b></p>
         <p className="muted small">처음 한 번만 이름과 PIN을 넣으면 됩니다. 이 기기에 기억됩니다.</p>
@@ -126,9 +128,12 @@ function PinForm({ tid, uid, eventId, token, revoked, onDone }: {
 function RefBoard({ tid, eventId, name, onRevoked }: { tid: string; eventId: string; name: string; onRevoked: () => void }) {
   const br = useJsonDoc<PublicBracketData>(paths.publicBracket(tid, eventId));
   const rs = useDoc<ResultsDoc>(paths.results(tid, eventId));
+  const bl = useDoc<BlindDoc>(paths.blind(tid));
+  const blind = isBlind(bl.data, eventId);
+  const hs = useDoc<ResultsDoc>(blind ? paths.hidden(tid, eventId) : null);
   const online = useOnline();
   const data = br.data;
-  const { results, records } = useMemo(() => readResults(rs.data, data), [rs.data, data]);
+  const { results, records } = useMemo(() => readResults(rs.data, data, blind ? hs.data : null), [rs.data, data, blind, hs.data]);
   const ev = { id: eventId, name: data?.eventName ?? eventId };
 
   const fail = (e: any) => {
@@ -152,14 +157,15 @@ function RefBoard({ tid, eventId, name, onRevoked }: { tid: string; eventId: str
       <div className="page">
         <p className="muted small">입력자: <b>{name}</b> · 입력한 결과는 바로 전광판·공개 대진표에 반영되고, 변경 이력이 남습니다.</p>
         {!online && <div className="alert alert-warn">인터넷이 끊겼습니다. 입력은 이 기기에 저장되었다가 다시 연결되면 자동으로 전송됩니다.</div>}
-        {br.loading || rs.loading ? (
+        {blind && <div className="alert alert-warn">🙈 블라인드 중: 입력한 결과는 공개 화면에 바로 나오지 않고 폐회식 때 공개됩니다. 입력은 평소처럼 하세요.</div>}
+        {br.loading || rs.loading || bl.loading || hs.loading ? (
           <p className="muted">불러오는 중…</p>
         ) : !data || data.divisions.length === 0 ? (
           <div className="card muted">아직 대진표가 만들어지지 않았습니다. 관리자에게 알려 주세요.</div>
         ) : (
           data.divisions.map((d) => (
             <RefDivision key={d.key} tid={tid} ev={ev} data={data} div={d} results={results} records={records[d.key] ?? {}}
-              multi={data.divisions.length > 1} actor={{ name }} fail={fail} />
+              multi={data.divisions.length > 1} actor={{ name }} fail={fail} blind={blind} />
           ))
         )}
       </div>
@@ -167,7 +173,7 @@ function RefBoard({ tid, eventId, name, onRevoked }: { tid: string; eventId: str
   );
 }
 
-function RefDivision({ tid, ev, data, div, results, records, multi, actor, fail }: {
+function RefDivision({ tid, ev, data, div, results, records, multi, actor, fail, blind }: {
   tid: string;
   ev: { id: string; name: string };
   data: PublicBracketData;
@@ -177,6 +183,7 @@ function RefDivision({ tid, ev, data, div, results, records, multi, actor, fail 
   multi: boolean;
   actor: { name: string };
   fail: (e: unknown) => void;
+  blind: boolean;
 }) {
   const [open, setOpen] = useState<ResolvedMatch | null>(null);
   const [showAll, setShowAll] = useState(false);
@@ -191,7 +198,7 @@ function RefDivision({ tid, ev, data, div, results, records, multi, actor, fail 
       <div className="division">
         {multi && <h2>{div.title}</h2>}
         <RecordEditor div={div} records={records} rankBy={data.rankBy}
-          onSave={(rec) => writeRecords(tid, ev, div.key, div.title, records, rec, actor).catch(fail)} />
+          onSave={(rec) => writeRecords(tid, ev, div.key, div.title, records, rec, actor, blind).catch(fail)} />
       </div>
     );
 
@@ -228,7 +235,7 @@ function RefDivision({ tid, ev, data, div, results, records, multi, actor, fail 
           onClose={() => setOpen(null)}
           onSave={(r, action) => {
             const m = rd.byId[open.id];
-            writeMatchResult(tid, ev, open.id, `${div.title} ${m.label} (${whoText(m.sideA)} vs ${whoText(m.sideB)})`, action, results[open.id] ?? null, r, actor).catch(fail);
+            writeMatchResult(tid, ev, open.id, `${div.title} ${m.label} (${whoText(m.sideA)} vs ${whoText(m.sideB)})`, action, results[open.id] ?? null, r, actor, blind).catch(fail);
             setOpen(null);
           }} />
       )}

@@ -7,6 +7,7 @@ import { FORMAT_LABELS, matchRuleLabel } from '../../config/derive';
 import { useDoc, useJsonDoc } from '../../data/hooks';
 import {
   emptyBracket,
+  isBlind,
   leaguePointsOf,
   paths,
   readResults,
@@ -14,6 +15,7 @@ import {
   writeMatchResult,
   writeNote,
   writeRecords,
+  type BlindDoc,
   type BracketData,
   type Records,
   type ResultsDoc,
@@ -78,15 +80,22 @@ function EventBracket({ tid, cfg, ev }: { tid: string; cfg: TournamentConfig; ev
   const s = useJsonDoc<BracketData>(paths.bracket(tid, ev.id));
   const rs = useDoc<ResultsDoc>(paths.results(tid, ev.id));
   const ns = useDoc<{ n?: Record<string, string> }>(paths.notes(tid, ev.id));
+  const bl = useDoc<BlindDoc>(paths.blind(tid));
+  const blind = isBlind(bl.data, ev.id);
+  const hs = useDoc<ResultsDoc>(blind ? paths.hidden(tid, ev.id) : null);
   const data = s.data ?? emptyBracket(ev.id);
   const wanted = divisionsOf(ev, cfg);
   const legacy = s.data && (Object.keys(s.data.results ?? {}).length || Object.keys(s.data.records ?? {}).length) ? s.data : null;
-  const { results, records } = useMemo(() => readResults(rs.data, legacy), [rs.data, legacy]);
+  const { results, records } = useMemo(() => readResults(rs.data, legacy, blind ? hs.data : null), [rs.data, legacy, blind, hs.data]);
 
   // 빠르게 연달아 저장해도 앞의 변경이 덮어써지지 않도록 '가장 최근 값'에 변경을 적용한다
   const latest = useRef<{ from: BracketData | null; value: BracketData }>({ from: null, value: data });
   if (latest.current.from !== s.data) latest.current = { from: s.data, value: data };
   const save: SaveFn = (update, action, target, before, after, reset) => {
+    if (blind && (reset || legacy)) {
+      alert('블라인드 중에는 대진표를 다시 만들거나 자리를 바꿀 수 없습니다. [블라인드·최종 공개]에서 결과를 공개한 뒤 하세요.');
+      return Promise.resolve();
+    }
     const next = update(latest.current.value);
     latest.current.value = next;
     // 2단계 형식(대진표 문서 안의 결과)이 남아 있으면 이번 저장 때 결과 문서로 옮긴다
@@ -98,13 +107,13 @@ function EventBracket({ tid, cfg, ev }: { tid: string; cfg: TournamentConfig; ev
   // 2단계 형식 결과를 한 번 옮겨 둔다(심판이 결과를 볼 수 있도록)
   const migrated = useRef(false);
   useEffect(() => {
-    if (legacy && !rs.loading && !migrated.current) {
+    if (legacy && !rs.loading && !bl.loading && !blind && !migrated.current) {
       migrated.current = true;
       save((d) => d, '결과 저장 형식 옮기기(3단계)', '전체', null, null);
     }
   }); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (s.loading || rs.loading) return <p className="muted">불러오는 중…</p>;
+  if (s.loading || rs.loading || bl.loading || hs.loading) return <p className="muted">불러오는 중…</p>;
 
   return (
     <>
@@ -113,8 +122,13 @@ function EventBracket({ tid, cfg, ev }: { tid: string; cfg: TournamentConfig; ev
         <span className="badge">{matchRuleLabel(ev)}</span>
         {ev.location && <span>{ev.location}</span>}
         <span className="grow" />
-        <SyncBadge pending={s.pending || rs.pending} />
+        <SyncBadge pending={s.pending || rs.pending || hs.pending} />
       </div>
+      {blind && (
+        <div className="alert alert-warn">
+          🙈 <b>블라인드 중</b>입니다. 지금부터 입력하는 결과는 공개 대진표에 나오지 않고, [블라인드·최종 공개]에서 [결과 공개]를 누를 때 한꺼번에 공개됩니다.
+        </div>
+      )}
       {wanted.map((w) => {
         const div = data.divisions.find((d) => d.key === w.key);
         const generate = (draw: boolean) => {
@@ -130,7 +144,7 @@ function EventBracket({ tid, cfg, ev }: { tid: string; cfg: TournamentConfig; ev
         if (!div) return <CreateCard key={w.key} title={w.title} count={w.entrants.length} multi={wanted.length > 1} onCreate={generate} />;
         return (
           <DivisionPanel key={w.key} tid={tid} ev={ev} div={div} data={data} results={results} records={records[w.key] ?? {}}
-            notes={ns.data?.n ?? {}} entrants={w.entrants} multi={wanted.length > 1} save={save} regenerate={generate} />
+            notes={ns.data?.n ?? {}} entrants={w.entrants} multi={wanted.length > 1} save={save} regenerate={generate} blind={blind} />
         );
       })}
     </>
@@ -156,7 +170,7 @@ function CreateCard({ title, count, multi, onCreate }: { title: string; count: n
   );
 }
 
-function DivisionPanel({ tid, ev, div, data, results, records, notes, entrants, multi, save, regenerate }: {
+function DivisionPanel({ tid, ev, div, data, results, records, notes, entrants, multi, save, regenerate, blind }: {
   tid: string;
   ev: EventConfig;
   div: Division;
@@ -168,6 +182,7 @@ function DivisionPanel({ tid, ev, div, data, results, records, notes, entrants, 
   multi: boolean;
   save: SaveFn;
   regenerate: (draw: boolean) => void;
+  blind: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [open, setOpen] = useState<ResolvedMatch | null>(null);
@@ -220,7 +235,7 @@ function DivisionPanel({ tid, ev, div, data, results, records, notes, entrants, 
           }} />
       ) : div.format === 'ranking' ? (
         <RecordEditor div={div} records={records} rankBy={ev.format.rankBy}
-          onSave={(rec) => writeRecords(tid, ev, div.key, div.title, records, rec, ADMIN).catch(fail)} />
+          onSave={(rec) => writeRecords(tid, ev, div.key, div.title, records, rec, ADMIN, blind).catch(fail)} />
       ) : (
         <>
           {div.groups.length > 0 && (
@@ -250,7 +265,7 @@ function DivisionPanel({ tid, ev, div, data, results, records, notes, entrants, 
           onSave={(r, action, note) => {
             const m = rd.byId[open.id];
             const target = `${div.title} ${m.label} (${whoText(m.sideA)} vs ${whoText(m.sideB)})`;
-            writeMatchResult(tid, ev, open.id, target, action, results[open.id] ?? null, r, ADMIN).catch(fail);
+            writeMatchResult(tid, ev, open.id, target, action, results[open.id] ?? null, r, ADMIN, blind).catch(fail);
             if (note !== undefined && note !== (notes[open.id] ?? '')) writeNote(tid, ev.id, open.id, note).catch(fail);
             setOpen(null);
           }} />
