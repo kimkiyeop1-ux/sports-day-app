@@ -17,6 +17,7 @@ const History = lazy(() => import('./pages/admin/History'));
 const Scores = lazy(() => import('./pages/admin/Scores'));
 const RevealAdmin = lazy(() => import('./pages/admin/RevealAdmin'));
 const Backup = lazy(() => import('./pages/admin/Backup'));
+const More = lazy(() => import('./pages/admin/More'));
 const Reveal = lazy(() => import('./pages/reveal/Reveal'));
 const Referee = lazy(() => import('./pages/referee/Referee'));
 const PublicBracket = lazy(() => import('./pages/bracket/PublicBracket'));
@@ -43,6 +44,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           <Route path="scores" element={<Scores />} />
           <Route path="reveal" element={<RevealAdmin />} />
           <Route path="backup" element={<Backup />} />
+          <Route path="more" element={<More />} />
         </Route>
         <Route path="/board" element={<Board />} />
         <Route path="/bracket" element={<PublicBracket />} />

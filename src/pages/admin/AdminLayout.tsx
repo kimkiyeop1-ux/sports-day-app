@@ -64,29 +64,19 @@ export default function AdminLayout() {
           <SyncBadge pending={cfg.pending || sc.pending} />
         </div>
         <nav className="nav">
-          <NavLink to="/admin" end>
-            대시보드
-          </NavLink>
-          <NavLink to="/admin/scenario">시나리오 진행</NavLink>
-          <NavLink to="/admin/bracket">대진표</NavLink>
-          <NavLink to="/admin/referee">심판 링크</NavLink>
-          <NavLink to="/admin/scores">점수·순위</NavLink>
-          <NavLink to="/admin/reveal">블라인드·공개</NavLink>
-          <NavLink to="/admin/history">변경 이력</NavLink>
-          <NavLink to="/admin/backup">백업·리허설</NavLink>
-          <NavLink to="/admin/setup">대회 설정</NavLink>
-          <a href="#/board" target="_blank" rel="noreferrer">
-            전광판 ↗
-          </a>
-          <a href="#/bracket" target="_blank" rel="noreferrer">
-            공개 대진표 ↗
-          </a>
+          <NavLink to="/admin" end>🏠 홈</NavLink>
+          <NavLink to="/admin/scenario">⏱ 진행표</NavLink>
+          <NavLink to="/admin/bracket">🏆 경기</NavLink>
+          <NavLink to="/admin/scores">🔒 점수</NavLink>
+          <NavLink to="/admin/reveal">🎉 순위 발표</NavLink>
+          <NavLink to="/admin/setup">⚙️ 설정</NavLink>
+          <NavLink to="/admin/more">☰ 더보기</NavLink>
         </nav>
       </div>
       <div className="page">
         {ctx.config?.rehearsalOf && (
           <div className="alert alert-warn">
-            🎭 <b>리허설 중</b>입니다. 진짜 대회 기록에는 영향이 없습니다. <NavLink to="/admin/backup">리허설 끝내기 →</NavLink>
+            🎭 <b>연습 모드</b>예요. 여기서 한 일은 진짜 대회에 남지 않아요. <NavLink to="/admin/backup">연습 끝내기 →</NavLink>
           </div>
         )}
         {ctx.loading ? <p className="muted">불러오는 중…</p> : <Outlet context={ctx} />}

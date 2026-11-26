@@ -12,7 +12,7 @@ export default function ScenarioRun() {
   const [showAllNotes, setShowAllNotes] = useState(false);
 
   if (loading) return <p className="muted">불러오는 중…</p>;
-  if (!config) return <p>먼저 <Link to="/admin">대시보드</Link>에서 대회를 시작하세요.</p>;
+  if (!config) return <p>먼저 <Link to="/admin">홈</Link>에서 대회를 시작하세요.</p>;
 
   const p = computeProgress(config.scenario, done, now);
 
@@ -40,12 +40,14 @@ export default function ScenarioRun() {
     <>
       <div className="row" style={{ marginBottom: 12 }}>
         <h1 className="grow" style={{ margin: 0 }}>
-          시나리오 진행
+          진행표
         </h1>
         <span className={`badge ${p.delayMin > 5 ? 'badge-danger' : p.delayMin > 0 ? 'badge-warn' : 'badge-ok'}`} style={{ fontSize: 15 }}>
           {delayLabel(p.delayMin)}
         </span>
       </div>
+
+      <p className="page-intro">대회 순서표예요. 한 순서가 끝나면 <b>[완료]</b>를 누르세요. 전광판이 다음 순서로 바뀌어요. 📢는 방송할 말이에요.</p>
 
       {p.current && (
         <div className="card" style={{ borderColor: 'var(--primary)', borderWidth: 2 }}>
@@ -66,7 +68,7 @@ export default function ScenarioRun() {
 
       <div className="row" style={{ margin: '8px 0' }}>
         <h2 className="grow" style={{ margin: 0 }}>
-          전체 순서 ({p.doneCount}/{p.total})
+          전체 순서 ({p.doneCount}/{p.total} 끝남)
         </h2>
         <label className="row small" style={{ margin: 0, fontWeight: 400 }}>
           <input type="checkbox" checked={showAllNotes} onChange={(e) => setShowAllNotes(e.target.checked)} /> 멘트 모두 보기

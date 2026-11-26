@@ -47,17 +47,17 @@ export default function Scores() {
   );
   const docs = useDocs<JsonDoc | ResultsDoc>(evPaths);
   const bonusDoc = useDoc<BonusDoc>(tid ? paths.bonus(tid) : null);
-  if (!config || !tid) return <p>먼저 대시보드에서 대회를 시작하세요.</p>;
+  if (!config || !tid) return <p>먼저 홈에서 대회를 시작하세요.</p>;
 
   return (
     <>
-      <h1>점수 · 순위 🔒</h1>
-      <p className="muted small">관리자만 볼 수 있습니다. 전광판·공개 대진표·심판 화면에는 총점과 순위가 나오지 않습니다.</p>
+      <h1>점수 🔒</h1>
+      <p className="page-intro">반별 총점과 순위예요. <b>선생님만</b> 볼 수 있고, 전광판이나 학생 화면에는 나오지 않아요.</p>
       <div className="row" style={{ marginBottom: 12 }}>
         {([
-          ['rank', '종합 순위'],
-          ['bonus', '경기 외 점수'],
-          ['rules', '동점 규칙'],
+          ['rank', '반별 순위'],
+          ['bonus', '응원·질서 점수 넣기'],
+          ['rules', '점수가 같을 때'],
         ] as [Tab, string][]).map(([k, l]) => (
           <button key={k} className={`btn-sm ${tab === k ? 'btn-primary' : ''}`} onClick={() => setTab(k)}>{l}</button>
         ))}
@@ -132,7 +132,7 @@ function RankTab({ tid, config, docs, bonus }: { tid: string; config: Tournament
   return (
     <>
       <div className="card">
-        <h3>종목별 확정 현황</h3>
+        <h3>종목별로 순위가 다 나왔나요?</h3>
         <div className="row">
           {status.map((s) => (
             <span key={s.id} className={`chip ${s.decided === s.total && s.total ? 'chip-ok' : ''}`}>
@@ -142,7 +142,7 @@ function RankTab({ tid, config, docs, bonus }: { tid: string; config: Tournament
             </span>
           ))}
         </div>
-        {!complete && <p className="muted small" style={{ marginBottom: 0 }}>아직 순위가 확정되지 않은 종목이 있어 <b>중간 집계</b>입니다. 확정 안 된 종목 점수는 0점으로 계산합니다.</p>}
+        {!complete && <p className="muted small" style={{ marginBottom: 0 }}>아직 안 끝난 종목이 있어서 <b>지금까지의 점수</b>예요. 안 끝난 종목은 0점으로 셌어요.</p>}
       </div>
 
       {grades.length > 1 && (
@@ -155,7 +155,7 @@ function RankTab({ tid, config, docs, bonus }: { tid: string; config: Tournament
       )}
 
       <div className="card">
-        <h3>{scope == null ? '전교' : `${scope}학년`} 종합 순위 {complete ? <span className="badge badge-ok">최종</span> : <span className="badge badge-warn">중간 집계</span>}</h3>
+        <h3>{scope == null ? '전교' : `${scope}학년`} 종합 순위 {complete ? <span className="badge badge-ok">최종</span> : <span className="badge badge-warn">지금까지</span>}</h3>
         <div className="table-wrap">
           <table className="tbl tbl-score">
             <thead>
@@ -199,8 +199,8 @@ function RankTab({ tid, config, docs, bonus }: { tid: string; config: Tournament
           </table>
         </div>
         <p className="muted small" style={{ marginBottom: 0 }}>
-          종목 점수 = (순위 점수 + 참가점) × 가중치 · 공동 순위 점수: {config.scoring.sharedRankPoints === 'average' ? '자리 평균' : '같은 점수'} · 동점 규칙:{' '}
-          {config.scoring.tieBreakers.length ? config.scoring.tieBreakers.map((k) => tieBreakerLabel(config, k)).join(' → ') : '없음(공동 순위)'}
+          종목 점수 = (순위 점수 + 참가 점수) × 배수. 총점이 같으면:{' '}
+          {config.scoring.tieBreakers.length ? config.scoring.tieBreakers.map((k) => tieBreakerLabel(config, k)).join(' → ') : '공동 순위'}
         </p>
       </div>
     </>
@@ -221,7 +221,7 @@ function shortTb(config: TournamentConfig, key: string): string {
 
 function BonusTab({ tid, config, bonus }: { tid: string; config: TournamentConfig; bonus: BonusMap }) {
   if (!config.scoring.bonusCategories.length)
-    return <div className="card muted">경기 외 점수 항목이 없습니다. [대회 설정 → 기본·학급 → 경기 외 점수 항목]에서 추가하세요.</div>;
+    return <div className="card muted">응원·질서 점수 항목이 없어요. [⚙️ 설정 → 🏫 학교·반]에서 항목을 추가하세요.</div>;
   return (
     <>
       {config.scoring.bonusCategories.map((cat) => (
@@ -274,7 +274,7 @@ function BonusCard({ tid, config, cat, values }: {
         <h3 className="grow" style={{ margin: 0 }}>{cat.name} {cat.negative && <span className="badge badge-danger">감점</span>}</h3>
       </div>
       <p className="muted small" style={{ margin: 0 }}>
-        {cat.negative ? '입력한 점수만큼 총점에서 뺍니다(숫자는 양수로 입력).' : '입력한 점수만큼 총점에 더합니다.'} 비워 두면 0점입니다.
+        {cat.negative ? '넣은 점수만큼 총점에서 빼요(숫자만 쓰세요).' : '넣은 점수만큼 총점에 더해요.'} 비워 두면 0점이에요.
       </p>
       {byGrade.map((g) => (
         <div key={g} className="seat-grid">
@@ -286,7 +286,7 @@ function BonusCard({ tid, config, cat, values }: {
           ))}
         </div>
       ))}
-      {bad.length > 0 && <div className="alert alert-danger">0 이상의 숫자만 넣을 수 있습니다: {bad.join(', ')}</div>}
+      {bad.length > 0 && <div className="alert alert-danger">0보다 큰 숫자만 넣을 수 있어요: {bad.join(', ')}</div>}
       <button className="btn-primary" disabled={!dirty || bad.length > 0 || busy} onClick={save}>{cat.name} 저장</button>
     </div>
   );
@@ -296,7 +296,8 @@ function BonusCard({ tid, config, cat, values }: {
 
 function RulesTab({ config, save }: { config: TournamentConfig; save: (c: TournamentConfig) => Promise<void> }) {
   const [list, setList] = useState<string[]>(config.scoring.tieBreakers);
-  const [shared, setShared] = useState<SharedRankPoints>(config.scoring.sharedRankPoints ?? 'same');
+  // 공동 순위 점수 방식은 화면에서 고르지 않음(설정 파일에 있으면 그대로 유지)
+  const shared: SharedRankPoints = config.scoring.sharedRankPoints ?? 'same';
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const options = tieBreakerOptions(config).filter((o) => !list.includes(o.key));
@@ -312,7 +313,7 @@ function RulesTab({ config, save }: { config: TournamentConfig; save: (c: Tourna
     setBusy(true);
     try {
       await save({ ...config, scoring: { ...config.scoring, tieBreakers: list, sharedRankPoints: shared } });
-      setMsg('저장했습니다. 종합 순위에 바로 반영됩니다.');
+      setMsg('저장했어요. 반별 순위에 바로 바뀌어요.');
       setTimeout(() => setMsg(null), 3000);
     } catch (e: any) {
       alert('저장 실패: ' + e.message);
@@ -323,8 +324,9 @@ function RulesTab({ config, save }: { config: TournamentConfig; save: (c: Tourna
   return (
     <>
       <div className="card stack">
-        <h3>총점이 같을 때 (위에서부터 차례로 적용)</h3>
-        {list.length === 0 && <p className="muted small">규칙이 없으면 총점이 같은 학급은 공동 순위가 됩니다.</p>}
+        <h3>총점이 같은 반이 있으면 무엇으로 정할까요?</h3>
+        <p className="muted small" style={{ margin: 0 }}>위에서부터 차례로 비교해요.</p>
+        {list.length === 0 && <p className="muted small">아무것도 없으면 총점이 같은 반은 공동 순위가 돼요.</p>}
         {list.map((k, i) => (
           <div key={k} className="row item" style={{ marginBottom: 0 }}>
             <b style={{ width: 24 }}>{i + 1}</b>
@@ -336,24 +338,13 @@ function RulesTab({ config, save }: { config: TournamentConfig; save: (c: Tourna
         ))}
         {options.length > 0 && (
           <select value="" onChange={(e) => e.target.value && setList([...list, e.target.value])} aria-label="동점 규칙 추가">
-            <option value="">+ 규칙 추가…</option>
+            <option value="">+ 비교할 것 추가…</option>
             {options.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
           </select>
         )}
-        <p className="muted small" style={{ margin: 0 }}>모든 규칙으로도 같으면 공동 순위가 됩니다(예: 공동 2위 다음은 4위).</p>
+        <p className="muted small" style={{ margin: 0 }}>그래도 같으면 공동 순위예요(예: 공동 2위 다음은 4위).</p>
       </div>
-      <div className="card stack">
-        <h3>종목에서 공동 순위일 때 받는 점수</h3>
-        <label className="row" style={{ fontWeight: 400 }}>
-          <input type="radio" checked={shared === 'same'} onChange={() => setShared('same')} />
-          같은 점수 — 공동 3위 2학급이면 둘 다 3위 점수
-        </label>
-        <label className="row" style={{ fontWeight: 400 }}>
-          <input type="radio" checked={shared === 'average'} onChange={() => setShared('average')} />
-          자리 평균 — 공동 3위 2학급이면 (3위 점수 + 4위 점수) ÷ 2
-        </label>
-        <p className="muted small" style={{ margin: 0 }}>예: 토너먼트 8강에서 진 4학급은 모두 '공동 5위'입니다.</p>
-      </div>
+      <p className="muted small">종목에서 공동 순위(예: 8강에서 진 반은 모두 공동 5위)면 그 순위의 점수를 똑같이 받아요.</p>
       {msg && <div className="alert alert-ok">{msg}</div>}
       <button className="btn-primary" style={{ width: '100%' }} disabled={!dirty || busy} onClick={submit}>저장</button>
     </>

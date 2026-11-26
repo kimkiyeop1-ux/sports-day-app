@@ -3,7 +3,6 @@ import { useSearchParams } from 'react-router-dom';
 import PlanImport from './PlanImport';
 import { useAdmin } from './AdminLayout';
 import type { EventConfig, FormatType, ScenarioItem, TournamentConfig } from '../../config/types';
-import { loadSample } from '../../config/sample';
 import { validateConfig } from '../../config/validate';
 import { FORMAT_LABELS } from '../../config/derive';
 import { saveConfig } from '../../data/store';
@@ -36,7 +35,7 @@ export default function SetupEditor() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config]);
 
-  if (!draft) return <p>먼저 대시보드에서 대회를 시작하세요.</p>;
+  if (!draft) return <p>먼저 홈에서 대회를 시작하세요.</p>;
   const errors = validateConfig(draft);
   const set = (patch: Partial<TournamentConfig>) => setDraft({ ...draft, ...patch });
 
@@ -46,7 +45,7 @@ export default function SetupEditor() {
     setSaving(true);
     try {
       await saveConfig(draft, config, draft.id === config?.id ? done : {});
-      setMsg('저장했습니다. 전광판에도 바로 반영됩니다.');
+      setMsg('저장했어요. 전광판에도 바로 바뀌어요.');
       setTimeout(() => setMsg(null), 3000);
     } catch (e: any) {
       alert('저장 실패: ' + e.message);
@@ -57,15 +56,15 @@ export default function SetupEditor() {
 
   return (
     <>
-      <h1>대회 설정</h1>
+      <h1>설정</h1>
+      <p className="page-intro">우리 학교 대회 정보를 넣는 곳이에요. 처음이면 <b>📄 계획서로 만들기</b>부터 하세요. 고친 뒤에는 꼭 아래 <b>[저장하기]</b>를 눌러요.</p>
       <div className="row" style={{ marginBottom: 12 }}>
         {(
           [
             ['plan', '📄 계획서로 만들기'],
-            ['basic', '기본·학급'],
-            ['events', `종목(${draft.events.length})`],
-            ['scenario', `시나리오(${draft.scenario.length})`],
-            ['file', '파일'],
+            ['basic', '🏫 학교·반'],
+            ['events', `🏅 종목·점수 (${draft.events.length})`],
+            ['scenario', `⏱ 진행표 (${draft.scenario.length})`],
           ] as [Tab, string][]
         ).map(([k, l]) => (
           <button key={k} className={`btn-sm ${tab === k ? 'btn-primary' : ''}`} onClick={() => setTab(k)}>
@@ -74,15 +73,19 @@ export default function SetupEditor() {
         ))}
       </div>
 
-      {tab === 'plan' && <PlanImport draft={draft} setDraft={setDraft} onDone={(t) => { setTab(t); window.scrollTo(0, 0); }} />}
+      {tab === 'plan' && (
+        <>
+          <PlanImport draft={draft} setDraft={setDraft} onDone={(t) => { setTab(t); window.scrollTo(0, 0); }} />
+          <FileTab draft={draft} setDraft={setDraft} />
+        </>
+      )}
       {tab === 'basic' && <BasicTab draft={draft} set={set} />}
       {tab === 'events' && <EventsTab draft={draft} set={set} />}
       {tab === 'scenario' && <ScenarioTab draft={draft} set={set} />}
-      {tab === 'file' && <FileTab draft={draft} setDraft={setDraft} />}
 
       {errors.length > 0 && (
         <div className="alert alert-danger">
-          저장하기 전에 고쳐야 할 부분:
+          저장하기 전에 고쳐야 할 곳이 있어요:
           <ul>
             {errors.map((x) => (
               <li key={x}>{x}</li>
@@ -95,9 +98,9 @@ export default function SetupEditor() {
       {dirty && (
         <div className="savebar">
           <button className="btn-primary grow" style={{ fontSize: 17 }} disabled={saving || errors.length > 0} onClick={save}>
-            {saving ? '저장 중…' : '변경 내용 저장'}
+            {saving ? '저장 중…' : '💾 저장하기'}
           </button>
-          <button onClick={() => confirm('저장하지 않은 변경을 버릴까요?') && setDraft(config)}>되돌리기</button>
+          <button onClick={() => confirm('저장하지 않은 내용을 버리고 원래대로 돌릴까요?') && setDraft(config)}>취소</button>
         </div>
       )}
     </>
@@ -111,7 +114,7 @@ function BasicTab({ draft, set }: TabProps) {
   return (
     <>
       <div className="card">
-        <h2>기본 정보</h2>
+        <h2>대회 정보</h2>
         <div className="field">
           <label>대회 이름</label>
           <input value={draft.title} onChange={(e) => set({ title: e.target.value })} />
@@ -126,13 +129,16 @@ function BasicTab({ draft, set }: TabProps) {
             <input type="date" value={draft.date} onChange={(e) => set({ date: e.target.value })} />
           </div>
         </div>
-        <div className="field">
-          <label>대회 ID (영문·숫자·하이픈, 바꾸면 새 대회가 됩니다)</label>
-          <input value={draft.id} onChange={(e) => set({ id: e.target.value.trim() })} />
-        </div>
+        <details>
+          <summary className="small muted">내년 대회를 새로 만들 때 (대회 ID)</summary>
+          <p className="small muted" style={{ margin: '8px 0' }}>
+            대회 ID를 바꾸고 저장하면 <b>새 대회</b>가 만들어지고, 올해 기록은 그대로 남아요. 영어 소문자·숫자·하이픈(-)만 쓸 수 있어요. 예: <code>2027-sportsday</code>
+          </p>
+          <input value={draft.id} onChange={(e) => set({ id: e.target.value.trim() })} aria-label="대회 ID" />
+        </details>
       </div>
       <div className="card">
-        <h2>학년·학급</h2>
+        <h2>학년별 반 수</h2>
         {draft.grades.map((g, i) => (
           <div key={i} className="row" style={{ marginBottom: 8 }}>
             <input type="number" min={1} style={{ width: 80 }} value={g.grade}
@@ -140,7 +146,7 @@ function BasicTab({ draft, set }: TabProps) {
             <span>학년</span>
             <input type="number" min={1} max={30} style={{ width: 80 }} value={g.classCount}
               onChange={(e) => set({ grades: draft.grades.map((x, j) => (j === i ? { ...x, classCount: Number(e.target.value) } : x)) })} />
-            <span className="grow">학급</span>
+            <span className="grow">개 반</span>
             <button className="btn-sm btn-danger" onClick={() => set({ grades: draft.grades.filter((_, j) => j !== i) })}>삭제</button>
           </div>
         ))}
@@ -150,8 +156,8 @@ function BasicTab({ draft, set }: TabProps) {
         }}>+ 학년 추가</button>
       </div>
       <div className="card">
-        <h2>경기 외 점수 항목</h2>
-        <p className="muted small">응원점수·질서점수·감점 등 (점수 입력은 [점수·순위 → 경기 외 점수]에서)</p>
+        <h2>응원·질서 점수 항목</h2>
+        <p className="muted small">경기 말고 따로 주는 점수예요(응원, 질서, 감점 등). 점수는 대회 날 [점수] 화면에서 넣어요.</p>
         {draft.scoring.bonusCategories.map((b, i) => (
           <div key={b.id} className="row" style={{ marginBottom: 8 }}>
             <input className="grow" value={b.name} onChange={(e) =>
@@ -212,14 +218,13 @@ function EventsTab({ draft, set }: TabProps) {
           {open === ev.id && (
             <div style={{ marginTop: 12 }}>
               <div className="grid2">
-                <div className="field"><label>종목명</label><input value={ev.name} onChange={(e) => upd(i, { name: e.target.value })} /></div>
-                <div className="field"><label>종목 ID (영문)</label><input value={ev.id} onChange={(e) => { upd(i, { id: e.target.value.trim() }); setOpen(e.target.value.trim()); }} /></div>
+                <div className="field"><label>종목 이름</label><input value={ev.name} onChange={(e) => upd(i, { name: e.target.value })} /></div>
                 <div className="field"><label>장소</label><input value={ev.location ?? ''} onChange={(e) => upd(i, { location: e.target.value })} /></div>
                 <div className="field">
-                  <label>대진 단위</label>
+                  <label>누구끼리 경기하나요?</label>
                   <select value={ev.scope} onChange={(e) => upd(i, { scope: e.target.value as 'grade' | 'school' })}>
-                    <option value="grade">학년별로 따로</option>
-                    <option value="school">전교 함께</option>
+                    <option value="grade">같은 학년 반끼리</option>
+                    <option value="school">전교 모든 반이 함께</option>
                   </select>
                 </div>
               </div>
@@ -244,13 +249,13 @@ function EventsTab({ draft, set }: TabProps) {
                 </div>
                 {ev.format.type !== 'ranking' && (
                   <div className="field">
-                    <label>승패 결정</label>
+                    <label>이기고 지는 방법</label>
                     <select value={ev.match.mode === 'sets' ? `sets${ev.match.setsToWin ?? 2}` : 'score'}
                       onChange={(e) => {
                         const v = e.target.value;
                         upd(i, { match: v === 'score' ? { mode: 'score', allowDraw: ev.match.allowDraw } : { mode: 'sets', setsToWin: Number(v.slice(4)) } });
                       }}>
-                      <option value="score">점수제(득점 비교)</option>
+                      <option value="score">점수가 높으면 이김</option>
                       <option value="sets1">단판</option>
                       <option value="sets2">3판 2선승</option>
                       <option value="sets3">5판 3선승</option>
@@ -261,26 +266,26 @@ function EventsTab({ draft, set }: TabProps) {
               {(ev.format.type === 'single_elim' || ev.format.type === 'groups_knockout') && (
                 <label className="row" style={{ fontWeight: 400 }}>
                   <input type="checkbox" checked={!!ev.format.thirdPlaceMatch} onChange={(e) => upd(i, { format: { ...ev.format, thirdPlaceMatch: e.target.checked } })} />
-                  3·4위전 진행
+                  3·4위 결정전도 해요
                 </label>
               )}
               {ev.format.type === 'groups_knockout' && (
                 <div className="grid2">
-                  <div className="field"><label>조 개수</label><input type="number" min={2} value={ev.format.groupCount ?? 2} onChange={(e) => upd(i, { format: { ...ev.format, groupCount: Number(e.target.value) } })} /></div>
-                  <div className="field"><label>조별 진출 수</label><input type="number" min={1} value={ev.format.advancePerGroup ?? 2} onChange={(e) => upd(i, { format: { ...ev.format, advancePerGroup: Number(e.target.value) } })} /></div>
+                  <div className="field"><label>몇 개 조로 나눌까요?</label><input type="number" min={2} value={ev.format.groupCount ?? 2} onChange={(e) => upd(i, { format: { ...ev.format, groupCount: Number(e.target.value) } })} /></div>
+                  <div className="field"><label>조마다 몇 반이 토너먼트에 올라가요?</label><input type="number" min={1} value={ev.format.advancePerGroup ?? 2} onChange={(e) => upd(i, { format: { ...ev.format, advancePerGroup: Number(e.target.value) } })} /></div>
                 </div>
               )}
               {(ev.format.type === 'round_robin' || ev.format.type === 'groups_knockout') && ev.match.mode === 'score' && (
                 <label className="row" style={{ fontWeight: 400 }}>
                   <input type="checkbox" checked={!!ev.match.allowDraw} onChange={(e) => upd(i, { match: { ...ev.match, allowDraw: e.target.checked } })} />
-                  리그전 무승부 허용
+                  리그에서 비기는 것도 인정해요
                 </label>
               )}
               {ev.format.type === 'ranking' && (
                 <div className="grid2">
-                  <div className="field"><label>한 번에 뛰는 학급 수 (0 = 전체 한 번에)</label><input type="number" min={0} value={ev.format.heatSize ?? 0} onChange={(e) => upd(i, { format: { ...ev.format, heatSize: Number(e.target.value) } })} /></div>
+                  <div className="field"><label>한 번에 같이 뛰는 반 수 (0 = 모두 한 번에)</label><input type="number" min={0} value={ev.format.heatSize ?? 0} onChange={(e) => upd(i, { format: { ...ev.format, heatSize: Number(e.target.value) } })} /></div>
                   <div className="field">
-                    <label>순위 정하는 방법</label>
+                    <label>순위는 어떻게 정해요?</label>
                     <select value={ev.format.rankBy ?? 'rank'} onChange={(e) => upd(i, { format: { ...ev.format, rankBy: e.target.value as 'rank' | 'record_low' | 'record_high' } })}>
                       <option value="rank">순위를 직접 입력</option>
                       <option value="record_low">기록이 낮을수록 위(달리기 시간 등)</option>
@@ -289,19 +294,19 @@ function EventsTab({ draft, set }: TabProps) {
                   </div>
                 </div>
               )}
-              <h3 style={{ marginTop: 12 }}>배점 🔒 <span className="muted small">(관리자만 볼 수 있음)</span></h3>
-              <div className="field"><label>순위별 점수 (1위, 2위, 3위… 쉼표로 구분)</label><NumList value={ev.points.byRank} onChange={(v) => upd(i, { points: { ...ev.points, byRank: v } })} /></div>
+              <h3 style={{ marginTop: 12 }}>점수 🔒 <span className="muted small">(선생님만 보여요)</span></h3>
+              <div className="field"><label>순위마다 받는 점수 (1위, 2위, 3위… 쉼표로 나눠 쓰기)</label><NumList value={ev.points.byRank} onChange={(v) => upd(i, { points: { ...ev.points, byRank: v } })} /></div>
               <div className="grid2">
-                <div className="field"><label>참가점</label><input type="number" value={ev.points.participation} onChange={(e) => upd(i, { points: { ...ev.points, participation: Number(e.target.value) } })} /></div>
-                <div className="field"><label>가중치 (×)</label><input type="number" step="0.1" value={ev.points.weight} onChange={(e) => upd(i, { points: { ...ev.points, weight: Number(e.target.value) } })} /></div>
+                <div className="field"><label>참가만 해도 받는 점수</label><input type="number" value={ev.points.participation} onChange={(e) => upd(i, { points: { ...ev.points, participation: Number(e.target.value) } })} /></div>
+                <div className="field"><label>점수 배수 (보통 1, 중요한 종목은 1.5·2)</label><input type="number" step="0.1" value={ev.points.weight} onChange={(e) => upd(i, { points: { ...ev.points, weight: Number(e.target.value) } })} /></div>
               </div>
               {(ev.format.type === 'round_robin' || ev.format.type === 'groups_knockout') && (
-                <div className="field"><label>리그 승점 (승, 무, 패)</label>
+                <div className="field"><label>리그 순위를 정하는 승점 (이김, 비김, 짐)</label>
                   <NumList value={[ev.points.leagueWin, ev.points.leagueDraw, ev.points.leagueLoss]}
                     onChange={(v) => upd(i, { points: { ...ev.points, leagueWin: v[0] ?? 3, leagueDraw: v[1] ?? 1, leagueLoss: v[2] ?? 0 } })} />
                 </div>
               )}
-              <div className="field"><label>메모</label><input value={ev.memo ?? ''} onChange={(e) => upd(i, { memo: e.target.value })} /></div>
+              <div className="field"><label>메모 (선생님만 보여요)</label><input value={ev.memo ?? ''} onChange={(e) => upd(i, { memo: e.target.value })} /></div>
               <button className="btn-sm btn-danger" onClick={() => confirm(`"${ev.name}" 종목을 삭제할까요?`) && set({ events: draft.events.filter((_, j) => j !== i) })}>이 종목 삭제</button>
             </div>
           )}
@@ -326,7 +331,7 @@ function ScenarioTab({ draft, set }: TabProps) {
   return (
     <>
       <div className="row" style={{ marginBottom: 8 }}>
-        <span className="muted small grow">목록 순서 = 진행 순서입니다.</span>
+        <span className="muted small grow">위에서부터 순서대로 진행해요. 방송 멘트는 선생님 화면에만 보여요.</span>
         <button className="btn-sm" onClick={sortByTime}>시각순 정렬</button>
       </div>
       {draft.scenario.map((s, i) => (
@@ -344,7 +349,7 @@ function ScenarioTab({ draft, set }: TabProps) {
               {draft.events.map((ev) => <option key={ev.id} value={ev.id}>{ev.name}</option>)}
             </select>
           </div>
-          <textarea style={{ marginTop: 6 }} value={s.note ?? ''} onChange={(e) => upd(i, { note: e.target.value })} placeholder="방송 멘트 메모 (관리자만 보임)" />
+          <textarea style={{ marginTop: 6 }} value={s.note ?? ''} onChange={(e) => upd(i, { note: e.target.value })} placeholder="방송 멘트 (선생님만 보여요)" />
           <div className="row" style={{ marginTop: 6, justifyContent: 'flex-end' }}>
             <button className="btn-sm btn-icon" onClick={() => set({ scenario: move(draft.scenario, i, -1) })} aria-label="위로">▲</button>
             <button className="btn-sm btn-icon" onClick={() => set({ scenario: move(draft.scenario, i, 1) })} aria-label="아래로">▼</button>
@@ -372,25 +377,23 @@ function FileTab({ draft, setDraft }: { draft: TournamentConfig; setDraft: (c: T
     try {
       const c = JSON.parse(await f.text());
       const errs = validateConfig(c);
-      if (errs.length && !confirm(`파일에 문제가 ${errs.length}개 있습니다. 그래도 불러와서 고칠까요?\n\n${errs.slice(0, 5).join('\n')}`)) return;
+      if (errs.length && !confirm(`파일에 고칠 곳이 ${errs.length}개 있어요. 그래도 불러와서 고칠까요?\n\n${errs.slice(0, 5).join('\n')}`)) return;
       setDraft(c);
-      alert('불러왔습니다. 확인 후 아래 [변경 내용 저장]을 누르세요.');
+      alert('불러왔어요. 확인한 뒤 아래 [저장하기]를 누르세요.');
     } catch {
-      alert('JSON 파일을 읽을 수 없습니다.');
+      alert('이 파일은 읽을 수 없어요. 앱에서 저장한 .json 파일인지 확인하세요.');
     }
   };
   return (
-    <div className="card stack">
-      <h2>설정 파일</h2>
-      <p className="muted small">현재 설정을 JSON 파일로 내려받아 백업하거나, 다른 파일(새 학교·새 해)로 교체할 수 있습니다.</p>
-      <button onClick={download}>⬇ 현재 설정 내려받기 (.json)</button>
-      <label className="btn" style={{ marginBottom: 0 }}>
-        ⬆ JSON 파일 불러오기
-        <input type="file" accept=".json,application/json" hidden onChange={(e) => load(e.target.files?.[0])} />
-      </label>
-      <button onClick={() => confirm('샘플 설정으로 바꿀까요? (저장 전까지는 반영되지 않습니다)') && loadSample().then(setDraft)}>
-        샘플 설정 불러오기
-      </button>
-    </div>
+    <details className="card">
+      <summary className="small" style={{ cursor: 'pointer' }}>📁 대회 설정을 파일로 저장하거나 불러오기 (내년에 다시 쓸 때)</summary>
+      <div className="row" style={{ marginTop: 10 }}>
+        <button className="btn-sm" onClick={download}>⬇ 파일로 저장</button>
+        <label className="btn btn-sm" style={{ marginBottom: 0 }}>
+          ⬆ 파일 불러오기
+          <input type="file" accept=".json,application/json" hidden onChange={(e) => load(e.target.files?.[0])} />
+        </label>
+      </div>
+    </details>
   );
 }

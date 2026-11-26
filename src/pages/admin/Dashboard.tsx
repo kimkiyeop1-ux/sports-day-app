@@ -26,40 +26,65 @@ export default function Dashboard() {
       <RulesWarning />
       <h1>{config.title}</h1>
       <p className="muted">
-        {config.date} · 학급 {allClasses(config).length}개 · 종목 {config.events.length}개
+        {config.date} · {allClasses(config).length}개 반 · 종목 {config.events.length}개
       </p>
+
       <div className="card">
-        <h2>진행 상황</h2>
-        <p>
-          <span className="badge badge-primary">현재</span> <b>{p.current?.title ?? '모든 순서 완료'}</b>
-        </p>
-        <p>
-          <span className="badge">다음</span> {p.next?.title ?? '-'}
-        </p>
-        <p className="row">
-          <span>
-            완료 {p.doneCount}/{p.total}
-          </span>
-          <span className={`badge ${p.delayMin > 5 ? 'badge-danger' : p.delayMin > 0 ? 'badge-warn' : 'badge-ok'}`}>
-            {delayLabel(p.delayMin)}
-          </span>
-        </p>
         <div className="row">
-          <Link className="btn btn-primary" to="/admin/scenario">
-            시나리오 진행 화면 열기
-          </Link>
-          <Link className="btn" to="/admin/bracket">
-            대진표·경기 결과
-          </Link>
+          <h2 className="grow" style={{ margin: 0 }}>지금 하는 순서</h2>
+          <span className={`badge ${p.delayMin > 5 ? 'badge-danger' : p.delayMin > 0 ? 'badge-warn' : 'badge-ok'}`}>{delayLabel(p.delayMin)}</span>
         </div>
+        <p style={{ margin: '10px 0 2px', fontSize: 18 }}><b>{p.current?.title ?? '모든 순서가 끝났어요 🎉'}</b></p>
+        <p className="muted" style={{ margin: 0 }}>다음: {p.next?.title ?? '없음'} · {p.doneCount}/{p.total} 끝남</p>
       </div>
-      <div className="card muted small">
+
+      <Step title="1. 대회 준비" hint="대회 전에 한 번만 하면 돼요.">
+        <StepLink to="/admin/setup" icon="⚙️" title="우리 학교 대회 정보 넣기" desc="반 수, 종목, 점수, 진행표를 넣어요. 계획서를 붙여넣으면 쉬워요." />
+        <StepLink to="/admin/bracket" icon="🏆" title="경기 대진표 만들기" desc="종목마다 누가 누구와 경기할지 정해요." />
+        <StepLink to="/admin/referee" icon="🧑‍⚖️" title="심판 선생님께 링크 보내기" desc="심판 선생님이 폰으로 경기 결과를 넣을 수 있어요." />
+        <StepLink to="/admin/backup" icon="🎭" title="연습해 보기 (선택)" desc="진짜 대회에 영향 없이 미리 해 볼 수 있어요." />
+      </Step>
+
+      <Step title="2. 대회 날" hint="이 화면들을 열어 두고 쓰세요.">
+        <StepLink to="/admin/scenario" icon="⏱" title="진행표" desc="순서가 끝날 때마다 [완료]를 눌러요. 전광판이 자동으로 바뀌어요." />
+        <StepLink to="/admin/bracket" icon="🏆" title="경기 결과 보기·고치기" desc="심판이 넣은 결과가 바로 보여요." />
+        <StepLink to="/admin/scores" icon="🔒" title="점수 보기 · 응원 점수 넣기" desc="반별 총점과 순위예요. 선생님만 볼 수 있어요." />
+        <a className="step-link" href="#/board" target="_blank" rel="noreferrer">
+          <span className="step-icon">📺</span>
+          <span className="grow"><b>전광판 띄우기 ↗</b><span>TV·프로젝터에 지금 순서를 크게 보여 줘요. 화면을 두 번 누르면 꽉 찬 화면이 돼요.</span></span>
+        </a>
+      </Step>
+
+      <Step title="3. 폐회식" hint="순위를 멋지게 발표해요.">
+        <StepLink to="/admin/reveal" icon="🎉" title="순위 발표 준비" desc="대회 후반엔 결과를 숨기고, 폐회식에서 한 반씩 발표해요." />
+        <StepLink to="/admin/backup" icon="💾" title="결과를 파일로 저장" desc="끝나면 엑셀 파일로 받아 두세요." />
+      </Step>
+
+      <p className="muted small">
         로그인: {auth.currentUser?.email} ·{' '}
-        <button className="btn-sm" onClick={() => signOut(auth)}>
-          로그아웃
-        </button>
-      </div>
+        <button className="btn-sm" onClick={() => signOut(auth)}>로그아웃</button>
+      </p>
     </>
+  );
+}
+
+function Step({ title, hint, children }: { title: string; hint: string; children: React.ReactNode }) {
+  return (
+    <section style={{ marginTop: 20 }}>
+      <h2 style={{ marginBottom: 2 }}>{title}</h2>
+      <p className="muted" style={{ margin: '0 0 10px' }}>{hint}</p>
+      <div className="more-list">{children}</div>
+    </section>
+  );
+}
+
+function StepLink({ to, icon, title, desc }: { to: string; icon: string; title: string; desc: string }) {
+  return (
+    <Link className="step-link" to={to}>
+      <span className="step-icon">{icon}</span>
+      <span className="grow"><b>{title}</b><span>{desc}</span></span>
+      <span className="step-arrow">›</span>
+    </Link>
   );
 }
 
@@ -94,9 +119,9 @@ function FirstRun() {
 
   return (
     <>
-      <h1>대회 시작하기</h1>
+      <h1>체육대회 시작하기</h1>
       <div className="card stack">
-        <p>아직 등록된 대회가 없습니다. 아래 중 하나를 고르세요.</p>
+        <p>아직 대회가 없어요. 어떻게 시작할까요?</p>
         <button className="btn-primary" disabled={busy} onClick={() =>
             loadSample()
               .then((c) => {
@@ -108,14 +133,17 @@ function FirstRun() {
           }>
           📄 우리 학교 계획서로 시작
         </button>
-        <p className="muted small" style={{ margin: 0 }}>샘플로 먼저 만든 뒤, 계획서의 시간표·종목을 붙여넣어 우리 학교 것으로 바꿉니다.</p>
+        <p className="muted small" style={{ margin: 0 }}>계획서의 진행표·종목을 붙여넣으면 우리 학교 대회가 만들어져요.</p>
         <button disabled={busy} onClick={() => loadSample().then(start)}>
-          샘플 설정으로 둘러보기 (2학년 8학급, 종목 4개)
+          예시 대회로 먼저 둘러보기
         </button>
-        <label className="btn" style={{ marginBottom: 0 }}>
-          대회 설정 JSON 파일 가져오기
-          <input type="file" accept=".json,application/json" hidden onChange={(e) => onFile(e.target.files?.[0])} />
-        </label>
+        <details>
+          <summary className="small muted">저장해 둔 대회 파일(.json)이 있어요</summary>
+          <label className="btn btn-sm" style={{ marginTop: 8 }}>
+            파일 불러오기
+            <input type="file" accept=".json,application/json" hidden onChange={(e) => onFile(e.target.files?.[0])} />
+          </label>
+        </details>
         {errors.length > 0 && (
           <div className="alert alert-danger">
             설정 파일에 문제가 있습니다:

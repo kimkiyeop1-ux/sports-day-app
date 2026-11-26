@@ -26,10 +26,11 @@ const RevealStage = lazy(() => import('../reveal/RevealStage'));
 
 export default function RevealAdmin() {
   const { tid, config } = useAdmin();
-  if (!config || !tid) return <p>먼저 대시보드에서 대회를 시작하세요.</p>;
+  if (!config || !tid) return <p>먼저 홈에서 대회를 시작하세요.</p>;
   return (
     <>
-      <h1>블라인드 · 최종 공개</h1>
+      <h1>순위 발표</h1>
+      <p className="page-intro">폐회식에서 순위를 한 반씩 멋지게 발표해요. 순서: ① 대회 후반에 결과 숨기기 → ② 발표 화면 만들기 → ③ 발표 선생님께 링크 보내기</p>
       <BlindSection tid={tid} config={config} />
       <PresenterSection tid={tid} />
       <PackagesSection tid={tid} config={config} />
@@ -61,18 +62,17 @@ function BlindSection({ tid, config }: { tid: string; config: TournamentConfig }
     }
   };
   const doOn = (evs: typeof config.events) =>
-    confirm(`블라인드를 켤까요? (${evs.map((e) => e.name).join(', ')})\n\n지금부터 입력하는 결과는 공개 대진표에 나오지 않습니다. 심판은 평소처럼 입력하면 됩니다.`) &&
+    confirm(`결과를 숨길까요? (${evs.map((e) => e.name).join(', ')})\n\n지금부터 넣는 결과는 학생 화면에 안 나와요. 심판은 평소처럼 넣으면 돼요.`) &&
     run(() => blindOn(tid, evs));
   const doOff = (evs: typeof config.events) =>
-    confirm(`결과를 공개할까요? (${evs.map((e) => e.name).join(', ')})\n\n숨겨 둔 결과가 공개 대진표에 한꺼번에 나타납니다.`) &&
+    confirm(`숨긴 결과를 보여 줄까요? (${evs.map((e) => e.name).join(', ')})\n\n숨겨 둔 결과가 학생 화면에 한꺼번에 나타나요.`) &&
     run(() => blindOff(tid, evs.map((e) => ({ id: e.id, name: e.name, hidden: hidden.data[paths.hidden(tid, e.id)] ?? null }))));
 
   return (
     <div className="card stack">
-      <h2>🙈 블라인드</h2>
-      <p className="muted small" style={{ margin: 0 }}>
-        대회 후반에 켜면 그 뒤 경기 결과가 공개 대진표에 나오지 않아, 학생들이 총점을 미리 계산할 수 없습니다. 심판 입력과 관리자 점수 계산은 그대로 됩니다.
-        숨긴 결과는 보안 규칙으로도 막혀 있어 공개 화면에 새어 나가지 않습니다.
+      <h2>① 🙈 결과 숨기기 (대회 후반)</h2>
+      <p className="small" style={{ margin: 0 }}>
+        켜면 그다음 경기 결과가 학생 화면에 안 나와요. 그래서 학생들이 순위를 미리 알 수 없어요. 심판 입력과 점수 계산은 평소처럼 돼요.
       </p>
       {bl.loading || hidden.loading ? (
         <p className="muted">불러오는 중…</p>
@@ -83,18 +83,18 @@ function BlindSection({ tid, config }: { tid: string; config: TournamentConfig }
             return (
               <div key={e.id} className="row item" style={{ marginBottom: 0 }}>
                 <b className="grow">{e.name}</b>
-                {b ? <span className="badge badge-warn">블라인드 중 · 숨긴 결과 {hiddenCount(e.id)}건</span> : <span className="badge badge-ok">공개 중</span>}
+                {b ? <span className="badge badge-warn">🙈 숨기는 중 · {hiddenCount(e.id)}건</span> : <span className="badge badge-ok">보이는 중</span>}
                 {b ? (
-                  <button className="btn-sm" disabled={busy} onClick={() => doOff([e])}>결과 공개</button>
+                  <button className="btn-sm" disabled={busy} onClick={() => doOff([e])}>결과 보여 주기</button>
                 ) : (
-                  <button className="btn-sm" disabled={busy} onClick={() => doOn([e])}>블라인드 켜기</button>
+                  <button className="btn-sm" disabled={busy} onClick={() => doOn([e])}>숨기기</button>
                 )}
               </div>
             );
           })}
           <div className="row">
-            <button disabled={busy || off.length === 0} onClick={() => doOn(off)}>모든 종목 블라인드</button>
-            <button disabled={busy || on.length === 0} onClick={() => doOff(on)}>모든 종목 결과 공개</button>
+            <button disabled={busy || off.length === 0} onClick={() => doOn(off)}>모든 종목 숨기기</button>
+            <button disabled={busy || on.length === 0} onClick={() => doOff(on)}>모든 종목 보여 주기</button>
           </div>
         </>
       )}
@@ -110,12 +110,12 @@ function PresenterSection({ tid }: { tid: string }) {
   const k = keys.data?.keys?.[PRESENTER];
   return (
     <>
-      <h2 style={{ marginTop: 20 }}>🎤 공개 진행자(폐회식 사회 선생님)</h2>
-      <p className="muted small">진행 선생님께 링크와 PIN을 보내면, 큰 화면에 연결한 기기에서 아래 '발표 자료'로 순위를 하나씩 공개할 수 있습니다. 진행자는 결과를 고칠 수 없습니다.</p>
+      <h2 style={{ marginTop: 20 }}>③ 🎤 발표 선생님께 링크 보내기</h2>
+      <p className="small">폐회식 사회 선생님께 링크와 비밀번호(PIN)를 보내세요. 큰 화면에 연결한 기기에서 열면 ②에서 만든 발표 화면이 나와요. 발표 선생님은 결과를 고칠 수 없어요.</p>
       {keys.loading ? (
         <p className="muted">불러오는 중…</p>
       ) : (
-        <EventKey tid={tid} ev={{ id: PRESENTER, name: '최종 순위 발표' }} k={k} who="공개 진행자" linkPath={(token) => `/reveal/${token}`}
+        <EventKey tid={tid} ev={{ id: PRESENTER, name: '순위 발표' }} k={k} who="발표 선생님" linkPath={(token) => `/reveal/${token}`}
           names={sessions.docs.filter((s) => s.ev === PRESENTER && k?.token === s.token && k?.pin === s.pin).map((s) => s.name)} />
       )}
     </>
@@ -149,10 +149,10 @@ function PackagesSection({ tid, config }: { tid: string; config: TournamentConfi
 
   return (
     <>
-      <h2 style={{ marginTop: 20 }}>🏆 발표 자료</h2>
-      <p className="muted small">
-        지금의 종합 순위를 '발표 자료'로 저장합니다. 진행자는 이 자료만 볼 수 있습니다. 결과가 바뀌면 다시 만들어 주세요.
-        {!complete && <b> ⚠️ 아직 확정되지 않은 종목이 있습니다(중간 집계).</b>}
+      <h2 style={{ marginTop: 20 }}>② 🏆 발표 화면 만들기</h2>
+      <p className="small">
+        지금 순위로 발표 화면을 만들어요. [▶ 미리보기]로 먼저 볼 수 있어요. 결과가 바뀌면 다시 만들어 주세요.
+        {!complete && <b> ⚠️ 아직 안 끝난 종목이 있어요.</b>}
       </p>
       {scopes.map((s) => {
         const ranked = rankByScope(rows, config, s.grade);
@@ -208,26 +208,26 @@ function PackageCard({ title, cur, changed, onMake, onPreview }: {
       <div className="row">
         <h3 className="grow" style={{ margin: 0 }}>{title} 순위 발표</h3>
         {cur ? (
-          changed ? <span className="badge badge-warn">자료를 만든 뒤 순위가 바뀜</span> : <span className="badge badge-ok">최신</span>
+          changed ? <span className="badge badge-warn">순위가 바뀌었어요 → 다시 만들기</span> : <span className="badge badge-ok">준비 완료</span>
         ) : (
-          <span className="badge">아직 없음</span>
+          <span className="badge">아직 안 만듦</span>
         )}
       </div>
       <div className="row">
         <label className="row" style={{ fontWeight: 400, margin: 0 }}>
-          <input type="checkbox" checked={showScores} onChange={(e) => setShowScores(e.target.checked)} /> 총점도 함께 공개
+          <input type="checkbox" checked={showScores} onChange={(e) => setShowScores(e.target.checked)} /> 총점도 같이 보여 주기
         </label>
         <select style={{ width: 'auto' }} value={topN} onChange={(e) => setTopN(Number(e.target.value))} aria-label={`${title} 발표 범위`}>
-          <option value={0}>전체 학급 발표</option>
+          <option value={0}>모든 반 발표</option>
           <option value={3}>3위부터 1위까지</option>
           <option value={5}>5위부터 1위까지</option>
           <option value={10}>10위부터 1위까지</option>
         </select>
       </div>
       <div className="row">
-        <button className="btn-primary" disabled={busy} onClick={make}>{cur ? '발표 자료 다시 만들기' : '발표 자료 만들기'}</button>
+        <button className="btn-primary" disabled={busy} onClick={make}>{cur ? '다시 만들기' : '발표 화면 만들기'}</button>
         {cur && <button onClick={() => onPreview(cur)}>▶ 미리보기</button>}
-        {at && <span className="muted small">만든 시각 {at.getHours()}:{String(at.getMinutes()).padStart(2, '0')}{!cur!.complete && ' · 중간 집계'}</span>}
+        {at && <span className="muted small">{at.getHours()}:{String(at.getMinutes()).padStart(2, '0')}에 만듦{!cur!.complete && ' · 안 끝난 종목 있음'}</span>}
       </div>
     </div>
   );

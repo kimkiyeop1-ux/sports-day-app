@@ -10,7 +10,6 @@ import {
   parseJsonDoc,
   paths,
   readResults,
-  rehearsalId,
   resetTournament,
   startRehearsal,
   type BonusDoc,
@@ -19,7 +18,6 @@ import {
   type ResultsDoc,
 } from '../../data/store';
 import type { TournamentConfig } from '../../config/types';
-import { allClasses } from '../../config/derive';
 import { BYE, resolveDivision, type ResolvedMatch } from '../../lib/bracket';
 import { computeScores, rankByScope } from '../../lib/scoring';
 import { download, stamp, toCsv, type Cell } from '../../lib/csv';
@@ -35,12 +33,12 @@ interface AuditDoc {
 
 export default function Backup() {
   const { tid, config } = useAdmin();
-  if (!config || !tid) return <p>먼저 대시보드에서 대회를 시작하세요.</p>;
+  if (!config || !tid) return <p>먼저 홈에서 대회를 시작하세요.</p>;
   return (
     <>
-      <h1>백업 · 리허설 · 초기화</h1>
-      <ExportSection tid={tid} config={config} />
+      <h1>연습 모드 · 파일로 저장</h1>
       <RehearsalSection config={config} />
+      <ExportSection tid={tid} config={config} />
       <ResetSection tid={tid} config={config} />
     </>
   );
@@ -126,11 +124,6 @@ function ExportSection({ tid, config }: { tid: string; config: TournamentConfig 
     download(name('standings'), toCsv(out));
   };
 
-  const bonusCsv = () => {
-    const cats = config.scoring.bonusCategories;
-    download(name('bonus-points'), toCsv([['학급', ...cats.map((c) => c.name + (c.negative ? '(감점)' : ''))], ...allClasses(config).map((c) => [c, ...cats.map((k) => bonus[k.id]?.[c] ?? 0)])]));
-  };
-
   const auditCsv = () => {
     const t = (ms: number) => new Date(ms).toLocaleString('ko-KR');
     download(name('history'), toCsv([['시각', '입력자', '내용', '대상', '이전', '이후'], ...[...audit.docs].reverse().map((a) => [t(a.at), a.actorName, a.action, a.target, a.before, a.after])]));
@@ -151,18 +144,24 @@ function ExportSection({ tid, config }: { tid: string; config: TournamentConfig 
   const loading = docs.loading || bonusDoc.loading || audit.loading;
   return (
     <div className="card stack">
-      <h2>📥 백업 내려받기</h2>
-      <p className="muted small" style={{ margin: 0 }}>엑셀에서 열 수 있는 CSV 파일입니다. 🔒 종합 순위·점수 파일은 학생에게 공유하지 마세요. 대회가 끝나면 모두 내려받아 보관하는 것을 권장합니다.</p>
+      <h2>💾 파일로 저장</h2>
+      <p className="small" style={{ margin: 0 }}>대회가 끝나면 엑셀 파일로 받아 두세요. 🔒 점수표는 학생에게 보여 주지 마세요.</p>
       {loading ? (
         <p className="muted">불러오는 중…</p>
       ) : (
-        <div className="row">
-          <button onClick={matchesCsv}>경기 결과 CSV</button>
-          <button onClick={standingsCsv}>🔒 종합 순위·점수 CSV</button>
-          <button onClick={bonusCsv}>🔒 경기 외 점수 CSV</button>
-          <button onClick={auditCsv}>변경 이력 CSV</button>
-          <button className="btn-primary" disabled={busy} onClick={jsonBackup}>{busy ? '모으는 중…' : '전체 백업(JSON)'}</button>
-        </div>
+        <>
+          <div className="row">
+            <button className="btn-primary" onClick={matchesCsv}>경기 결과 (엑셀)</button>
+            <button className="btn-primary" onClick={standingsCsv}>🔒 반별 점수표 (엑셀)</button>
+          </div>
+          <details>
+            <summary className="small muted">선생님용: 모든 기록을 한 파일로 (복구용)</summary>
+            <div className="row" style={{ marginTop: 8 }}>
+              <button className="btn-sm" disabled={busy} onClick={jsonBackup}>{busy ? '모으는 중…' : '전체 저장 파일 (.json)'}</button>
+              <button className="btn-sm" onClick={auditCsv}>고친 기록 (엑셀)</button>
+            </div>
+          </details>
+        </>
       )}
     </div>
   );
@@ -183,28 +182,28 @@ function RehearsalSection({ config }: { config: TournamentConfig }) {
   if (config.rehearsalOf)
     return (
       <div className="card stack" style={{ borderColor: '#f59e0b' }}>
-        <h2>🎭 리허설 중</h2>
+        <h2>🎭 지금은 연습 모드예요</h2>
         <p className="small" style={{ margin: 0 }}>
-          지금은 <b>리허설 대회</b>입니다. 마음껏 결과를 넣고 블라인드·발표까지 연습하세요. 진짜 대회(<code>{config.rehearsalOf}</code>) 기록에는 영향이 없습니다.
-          전광판·공개 대진표 제목에도 [리허설]이 붙습니다.
+          마음껏 눌러 보세요. 여기서 넣은 결과와 점수는 <b>진짜 대회에 남지 않아요.</b> 전광판 제목 앞에도 [리허설]이 붙어요.
         </p>
         <div className="row">
-          <button className="btn-primary" disabled={busy} onClick={() => confirm('리허설을 끝내고 진짜 대회로 돌아갈까요?') && run(() => endRehearsal(config))}>리허설 끝내기</button>
-          <button disabled={busy} onClick={() => confirm('리허설 기록을 모두 지우고 처음부터 다시 연습할까요?') && run(() => resetTournament(config.id, config))}>리허설 기록 지우고 다시</button>
+          <button className="btn-primary" disabled={busy} onClick={() => confirm('연습을 끝내고 진짜 대회로 돌아갈까요?') && run(() => endRehearsal(config))}>연습 끝내기</button>
+          <button disabled={busy} onClick={() => confirm('연습한 기록을 모두 지우고 처음부터 다시 연습할까요?') && run(() => resetTournament(config.id, config))}>연습 기록 지우고 다시</button>
         </div>
       </div>
     );
   return (
     <div className="card stack">
-      <h2>🎭 리허설 모드</h2>
-      <p className="muted small" style={{ margin: 0 }}>
-        지금 대회 설정을 그대로 복사한 '연습용 대회'로 바꿉니다. 대진표 만들기 → 심판 입력 → 블라인드 → 순위 발표까지 실제처럼 연습할 수 있고,
-        끝내면 진짜 대회 기록은 그대로입니다. 심판·진행자 링크도 같은 링크를 쓸 수 있습니다(처음 한 번 PIN 다시 입력).
+      <h2>🎭 연습 모드</h2>
+      <p className="small" style={{ margin: 0 }}>
+        대회 날 전에 <b>미리 해 보는 연습판</b>이에요. 우리 대회를 똑같이 복사해서, 대진표·심판 입력·점수·순위 발표까지 마음껏 눌러 볼 수 있어요.
+        연습을 끝내면 진짜 대회는 <b>아무것도 바뀌지 않은 그대로</b>예요.
       </p>
-      <p className="muted small" style={{ margin: 0 }}>리허설 대회 ID: <code>{rehearsalId(config.id)}</code> · 리허설 중 대회 설정을 바꾸면 리허설에만 적용됩니다.</p>
-      <button disabled={busy} onClick={() => confirm('리허설을 시작할까요?\n지난 리허설 기록이 있으면 지워지고 새로 시작합니다.') && run(() => startRehearsal(config))}>
-        {busy ? '준비 중…' : '리허설 시작'}
-      </button>
+      <div>
+        <button className="btn-primary" disabled={busy} onClick={() => confirm('연습 모드를 시작할까요?\n전에 연습한 기록이 있으면 지우고 새로 시작해요.') && run(() => startRehearsal(config))}>
+          {busy ? '준비 중…' : '연습 시작하기'}
+        </button>
+      </div>
     </div>
   );
 }
@@ -214,7 +213,7 @@ function ResetSection({ tid, config }: { tid: string; config: TournamentConfig }
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const reset = async () => {
-    if (!confirm(`정말로 "${config.title}" 기록을 모두 지울까요?\n먼저 전체 백업 파일이 자동으로 내려받아집니다.\n\n되돌릴 수 없습니다.`)) return;
+    if (!confirm(`정말로 "${config.title}" 기록을 모두 지울까요?\n지우기 전에 저장 파일이 자동으로 내려받아져요.\n\n되돌릴 수 없어요.`)) return;
     setBusy(true);
     try {
       const data = await collectBackup(tid, config);
@@ -223,24 +222,23 @@ function ResetSection({ tid, config }: { tid: string; config: TournamentConfig }
       setTyped('');
       setDone(true);
     } catch (e: any) {
-      alert('초기화 실패: ' + e.message);
+      alert('지우지 못했어요: ' + e.message);
     } finally {
       setBusy(false);
     }
   };
   return (
-    <div className="card stack" style={{ borderColor: 'var(--danger)' }}>
-      <h2>🧹 전체 초기화</h2>
-      <p className="small" style={{ margin: 0 }}>
-        대회 설정(학급·종목·배점·시나리오)과 심판·진행자 링크는 남기고, <b>시나리오 진행 기록·대진표·경기 결과·경기 외 점수·블라인드·발표 자료·심판 접속 기록·변경 이력</b>을 모두 지웁니다.
-        지우기 전에 전체 백업(JSON)이 자동으로 내려받아집니다.
-      </p>
-      <label className="small" style={{ margin: 0 }}>
-        확인을 위해 대회 ID <code>{config.id}</code> 를 그대로 입력하세요
-      </label>
-      <input value={typed} onChange={(e) => setTyped(e.target.value)} placeholder={config.id} aria-label="대회 ID 확인" />
-      <button className="btn-danger" disabled={busy || typed.trim() !== config.id} onClick={reset}>{busy ? '지우는 중…' : '전체 초기화'}</button>
-      {done && <div className="alert alert-ok">초기화했습니다. 백업 파일을 잘 보관하세요.</div>}
-    </div>
+    <details className="card">
+      <summary style={{ cursor: 'pointer' }}><b>🧹 처음부터 다시 하기</b> <span className="muted small">(조심!)</span></summary>
+      <div className="stack" style={{ marginTop: 10 }}>
+        <p className="small" style={{ margin: 0 }}>
+          대회 정보(반·종목·점수표·진행표)와 심판 링크는 남기고, <b>경기 결과·점수·진행 기록·고친 기록</b>을 모두 지워요. 지우기 전에 저장 파일이 자동으로 내려받아져요.
+        </p>
+        <label className="small" style={{ margin: 0 }}>정말 지우려면 아래 칸에 <b>지우기</b>라고 써 주세요</label>
+        <input value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="지우기" aria-label="지우기 확인" />
+        <div><button className="btn-danger" disabled={busy || typed.trim() !== '지우기'} onClick={reset}>{busy ? '지우는 중…' : '모두 지우기'}</button></div>
+        {done && <div className="alert alert-ok">다 지웠어요. 내려받은 저장 파일은 잘 보관하세요.</div>}
+      </div>
+    </details>
   );
 }
