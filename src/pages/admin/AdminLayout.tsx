@@ -89,7 +89,7 @@ export default function AdminLayout() {
             🎭 <b>리허설 중</b>입니다. 진짜 대회 기록에는 영향이 없습니다. <NavLink to="/admin/backup">리허설 끝내기 →</NavLink>
           </div>
         )}
-        <Outlet context={ctx} />
+        {ctx.loading ? <p className="muted">불러오는 중…</p> : <Outlet context={ctx} />}
       </div>
     </>
   );
