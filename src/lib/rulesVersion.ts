@@ -2,7 +2,7 @@ import { doc, getDocFromServer } from 'firebase/firestore';
 import { db } from './firebase';
 
 /** firestore.rules 의 meta/rulesCheck_v? 숫자와 같아야 한다 */
-export const RULES_VERSION = 1;
+export const RULES_VERSION = 2;
 
 export type RulesStatus = 'ok' | 'outdated' | 'offline' | 'error';
 

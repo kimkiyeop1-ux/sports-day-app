@@ -160,3 +160,10 @@ button, .btn { white-space: nowrap; }
 .score-row.small-row { margin: 6px 0; }
 .score-row.small-row input { font-size: 16px; font-weight: 600; }
 .score-team { font-weight: 800; text-align: center; word-break: keep-all; }
+
+/* ===== 심판 링크 · 변경 이력 ===== */
+.pin { font-size: 30px; letter-spacing: 6px; font-variant-numeric: tabular-nums; }
+.hist { display: flex; gap: 12px; align-items: flex-start; padding: 10px 14px; border-bottom: 1px solid var(--line); font-size: 14px; }
+.hist:last-child { border-bottom: 0; }
+.hist-time { font-variant-numeric: tabular-nums; color: var(--muted); width: 108px; flex: none; }
+@media (max-width: 520px) { .hist { flex-wrap: wrap; } .hist-time { width: 100%; } }

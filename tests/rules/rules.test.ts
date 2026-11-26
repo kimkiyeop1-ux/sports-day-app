@@ -105,8 +105,11 @@ describe('최초 관리자 등록', () => {
 
 describe('규칙 버전 확인', () => {
   it('누구나 규칙 버전 확인 문서를 읽을 수 있고, 쓸 수는 없다', async () => {
+    await assertSucceeds(getDoc(doc(anon(), 'meta/rulesCheck_v2')));
+    // 안정판(예전 버전) 앱도 이 규칙을 최신으로 인식
     await assertSucceeds(getDoc(doc(anon(), 'meta/rulesCheck_v1')));
-    await assertFails(setDoc(doc(admin(), 'meta/rulesCheck_v1'), { x: 1 }));
+    await assertFails(getDoc(doc(anon(), 'meta/rulesCheck_v3')));
+    await assertFails(setDoc(doc(admin(), 'meta/rulesCheck_v2'), { x: 1 }));
   });
 });
 
@@ -158,5 +161,72 @@ describe('대진표(2단계)', () => {
   it('관리자는 대진표 원본과 공개본을 쓸 수 있다', async () => {
     await assertSucceeds(setDoc(doc(admin(), B), { json: '{}', updatedAt: 2 }));
     await assertSucceeds(setDoc(doc(admin(), PB), { json: '{}', updatedAt: 2 }));
+  });
+});
+
+describe('심판 링크 + PIN (3단계)', () => {
+  const KEY = `${T}/private/referee`;
+  const RES = `${T}/public/results_dodgeball`;
+  const RES2 = `${T}/public/results_kickball`;
+  const ref = (uid = 'ref1') => env.authenticatedContext(uid, { firebase: { sign_in_provider: 'anonymous' } } as any).firestore();
+  const session = (pin = '123456', token = 'tokA', ev = 'dodgeball') => ({ ev, token, pin, name: '김선생', at: 1 });
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, KEY), { keys: { dodgeball: { token: 'tokA', pin: '123456' }, kickball: { token: 'tokB', pin: '654321' } } });
+      await setDoc(doc(db, RES), { r: {}, rec: {}, updatedAt: 1 });
+      await setDoc(doc(db, RES2), { r: {}, rec: {}, updatedAt: 1 });
+    });
+  });
+
+  it('PIN·링크 원본은 심판·학생이 읽을 수 없다', async () => {
+    await assertFails(getDoc(doc(anon(), KEY)));
+    await assertFails(getDoc(doc(ref(), KEY)));
+  });
+  it('PIN이 틀리면 심판 세션을 만들 수 없다', async () => {
+    await assertFails(setDoc(doc(ref(), `${T}/refSessions/ref1`), session('000000')));
+  });
+  it('링크 토큰이 틀리면 심판 세션을 만들 수 없다', async () => {
+    await assertFails(setDoc(doc(ref(), `${T}/refSessions/ref1`), session('123456', 'wrong')));
+  });
+  it('다른 사람 이름(UID)으로 세션을 만들 수 없다', async () => {
+    await assertFails(setDoc(doc(ref('ref1'), `${T}/refSessions/ref2`), session()));
+  });
+  it('이름이 비어 있으면 세션을 만들 수 없다', async () => {
+    await assertFails(setDoc(doc(ref(), `${T}/refSessions/ref1`), { ...session(), name: '' }));
+  });
+  it('PIN·토큰이 맞으면 세션을 만들고, 자기 종목 결과를 입력할 수 있다', async () => {
+    await assertSucceeds(setDoc(doc(ref(), `${T}/refSessions/ref1`), session()));
+    await assertSucceeds(getDoc(doc(ref(), `${T}/refSessions/ref1`)));
+    await assertSucceeds(updateDoc(doc(ref(), RES), { 'r.g2-R1-1': '{"a":2,"b":1}', updatedAt: 2 }));
+    await assertSucceeds(setDoc(doc(ref(), `${T}/audit/r1`), { actor: 'ref1', ev: 'dodgeball', action: '경기 결과 입력' }));
+  });
+  it('심판은 다른 종목 결과·대진표·설정·이력을 건드릴 수 없다', async () => {
+    await setDoc(doc(ref(), `${T}/refSessions/ref1`), session());
+    const db = ref();
+    await assertFails(updateDoc(doc(db, RES2), { 'r.g2-G0-1': '{}', updatedAt: 2 }));
+    await assertFails(setDoc(doc(db, `${T}/public/bracket_dodgeball`), { json: '{}' }));
+    await assertFails(setDoc(doc(db, `${T}/public/info`), { title: 'x' }));
+    await assertFails(getDoc(doc(db, `${T}/private/config`)));
+    await assertFails(getDoc(doc(db, `${T}/audit/a1`)));
+    await assertFails(setDoc(doc(db, `${T}/audit/r2`), { actor: 'ref1', ev: 'kickball', action: 'x' }));
+    await assertFails(updateDoc(doc(db, RES), { hacked: true }));
+    await assertFails(getDoc(doc(db, `${T}/refSessions/other`)));
+  });
+  it('관리자가 PIN을 바꾸면 예전 심판 세션으로는 입력할 수 없다', async () => {
+    await setDoc(doc(ref(), `${T}/refSessions/ref1`), session());
+    await env.withSecurityRulesDisabled((ctx) =>
+      setDoc(doc(ctx.firestore(), KEY), { keys: { dodgeball: { token: 'tokA', pin: '999999' } } }),
+    );
+    await assertFails(updateDoc(doc(ref(), RES), { 'r.g2-R1-1': '{}', updatedAt: 3 }));
+  });
+  it('세션이 없는 로그인 사용자는 결과를 입력할 수 없다', async () => {
+    await assertFails(updateDoc(doc(stranger(), RES), { 'r.g2-R1-1': '{}', updatedAt: 2 }));
+    await assertFails(updateDoc(doc(anon(), RES), { 'r.g2-R1-1': '{}', updatedAt: 2 }));
+  });
+  it('관리자는 심판 세션 목록을 볼 수 있다', async () => {
+    await setDoc(doc(ref(), `${T}/refSessions/ref1`), session());
+    await assertSucceeds(getDocs(collection(admin(), `${T}/refSessions`)));
+    await assertFails(getDocs(collection(ref(), `${T}/refSessions`)));
   });
 });

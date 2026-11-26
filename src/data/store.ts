@@ -7,11 +7,15 @@
 //  tournaments/{t}/private/scenario    관리자 시나리오 완료 기록
 //  tournaments/{t}/public/info         공개   학급·종목 이름 등(배점 없음)
 //  tournaments/{t}/public/progress     공개   진행 순서·완료 여부(방송멘트 없음)
-//  tournaments/{t}/private/bracket_{종목} 관리자 대진표·경기 결과 원본
-//  tournaments/{t}/public/bracket_{종목}  공개   대진표·경기 결과(승패·스코어만, 배점·종목 순위 없음)
+//  tournaments/{t}/private/bracket_{종목} 관리자 대진표 원본(조 순위 수동 지정 포함)
+//  tournaments/{t}/public/bracket_{종목}  공개   대진표 구조(배점·종목 순위 없음)
+//  tournaments/{t}/public/results_{종목}  공개   경기 결과·기록(승패·스코어). 관리자와 그 종목 심판만 쓰기
+//  tournaments/{t}/private/notes_{종목}   관리자 경기 메모
+//  tournaments/{t}/private/referee        관리자 종목별 심판 링크 토큰·PIN
+//  tournaments/{t}/refSessions/{uid}      심판   PIN 확인된 심판 기기(이름 포함)
 //  tournaments/{t}/audit/{id}          관리자 변경 이력(추가만 가능)
 // =============================================================
-import { collection, doc, writeBatch, type WriteBatch } from 'firebase/firestore';
+import { collection, doc, FieldPath, writeBatch, type WriteBatch } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import type { ClassId, EventConfig, MatchRule, TournamentConfig } from '../config/types';
 import type { Division, LeaguePoints, Results } from '../lib/bracket';
@@ -28,6 +32,11 @@ export const paths = {
   audit: (t: string) => `tournaments/${t}/audit`,
   bracket: (t: string, ev: string) => `tournaments/${t}/private/bracket_${ev}`,
   publicBracket: (t: string, ev: string) => `tournaments/${t}/public/bracket_${ev}`,
+  results: (t: string, ev: string) => `tournaments/${t}/public/results_${ev}`,
+  notes: (t: string, ev: string) => `tournaments/${t}/private/notes_${ev}`,
+  refKeys: (t: string) => `tournaments/${t}/private/referee`,
+  refSessions: (t: string) => `tournaments/${t}/refSessions`,
+  refSession: (t: string, uid: string) => `tournaments/${t}/refSessions/${uid}`,
 };
 
 export interface ConfigDoc {
@@ -46,7 +55,7 @@ export interface ProgressDoc {
 export function addAudit(
   b: WriteBatch,
   t: string,
-  entry: { action: string; target: string; before: unknown; after: unknown; actorName?: string },
+  entry: { action: string; target: string; before: unknown; after: unknown; actorName?: string; extra?: Record<string, string> },
 ) {
   const ref = doc(collection(db, paths.audit(t)));
   b.set(ref, {
@@ -58,6 +67,7 @@ export function addAudit(
     // Firestore는 undefined를 저장할 수 없으므로 JSON 문자열로 보관
     before: JSON.stringify(entry.before ?? null),
     after: JSON.stringify(entry.after ?? null),
+    ...(entry.extra ?? {}),
   });
 }
 
@@ -169,12 +179,166 @@ export function saveBracket(
   ev: EventConfig,
   data: BracketData,
   audit: { action: string; target: string; before: unknown; after: unknown },
+  /** 결과 문서를 통째로 바꿀 때(대진표 다시 만들기·자리 수정 등) */
+  resetResults?: { results: Results; records: Records },
 ): Promise<void> {
-  const next = { ...data, updatedAt: Date.now() };
+  // 결과·기록은 public/results_{종목}에 저장한다. 대진표 문서에는 남기지 않는다(2단계 형식 → 3단계 형식으로 옮김)
+  const next = { ...data, results: {}, records: {}, updatedAt: Date.now() };
   const b = writeBatch(db);
+  if (resetResults) {
+    b.set(doc(db, paths.results(t, ev.id)), {
+      r: Object.fromEntries(Object.entries(resetResults.results).map(([k, v]) => [k, JSON.stringify(v)])),
+      rec: resetResults.records,
+      updatedAt: next.updatedAt,
+    } satisfies ResultsDoc);
+  }
   b.set(doc(db, paths.bracket(t, ev.id)), { json: JSON.stringify(next), updatedAt: next.updatedAt } satisfies JsonDoc);
   const pub = toPublicBracket(ev, next);
   b.set(doc(db, paths.publicBracket(t, ev.id)), { json: JSON.stringify(pub), updatedAt: next.updatedAt } satisfies JsonDoc);
   addAudit(b, t, { ...audit, target: `${ev.name} · ${audit.target}` });
+  return b.commit();
+}
+
+// =============================================================
+// 경기 결과·기록 (3단계: 심판도 쓰는 문서)
+// public/results_{종목}:
+//   r   : 경기ID → 결과(JSON 문자열). "{}" = 결과 없음(지움)
+//   rec : 대진단위 → 학급 → 기록(순위제)
+// 경기마다 칸이 따로라서 여러 심판이 동시에 입력해도 서로 덮어쓰지 않는다.
+// =============================================================
+
+export type Records = Record<string, Record<ClassId, number>>;
+
+export interface ResultsDoc {
+  r?: Record<string, string>;
+  rec?: Records;
+  updatedAt?: number;
+}
+
+/** 결과 문서 → 결과·기록. (2단계 때 대진표 문서에 저장된 예전 결과가 있으면 합친다) */
+export function readResults(doc: ResultsDoc | null, legacy?: { results?: Results; records?: Records } | null): { results: Results; records: Records } {
+  const results: Results = { ...(legacy?.results ?? {}) };
+  for (const [k, v] of Object.entries(doc?.r ?? {})) {
+    try {
+      results[k] = JSON.parse(v);
+    } catch {
+      /* 무시 */
+    }
+  }
+  const records: Records = { ...(legacy?.records ?? {}) };
+  for (const [k, v] of Object.entries(doc?.rec ?? {})) records[k] = v ?? {};
+  return { results, records };
+}
+
+export interface Actor {
+  /** 이력에 남는 이름(관리자 / 심판 선생님 이름) */
+  name: string;
+}
+
+/** 경기 결과 한 건 저장(관리자·심판 공용). after=null 이면 결과 지우기 */
+export function writeMatchResult(
+  t: string,
+  ev: { id: string; name: string },
+  matchId: string,
+  target: string,
+  action: string,
+  before: unknown,
+  after: unknown,
+  actor: Actor,
+): Promise<void> {
+  const b = writeBatch(db);
+  const now = Date.now();
+  b.set(
+    doc(db, paths.results(t, ev.id)),
+    { r: { [matchId]: JSON.stringify(after ?? {}) }, updatedAt: now },
+    { mergeFields: [new FieldPath('r', matchId), 'updatedAt'] },
+  );
+  addAudit(b, t, {
+    action,
+    target: `${ev.name} · ${target}`,
+    before,
+    after,
+    actorName: actor.name,
+    extra: { kind: 'result', ev: ev.id, matchId },
+  });
+  return b.commit();
+}
+
+/** 순위제 기록 저장(대진단위 하나 전체를 바꿈) */
+export function writeRecords(
+  t: string,
+  ev: { id: string; name: string },
+  div: string,
+  target: string,
+  before: Record<ClassId, number>,
+  after: Record<ClassId, number>,
+  actor: Actor,
+): Promise<void> {
+  const b = writeBatch(db);
+  const now = Date.now();
+  b.set(
+    doc(db, paths.results(t, ev.id)),
+    { rec: { [div]: after }, updatedAt: now },
+    { mergeFields: [new FieldPath('rec', div), 'updatedAt'] },
+  );
+  addAudit(b, t, {
+    action: '기록 입력',
+    target: `${ev.name} · ${target}`,
+    before,
+    after,
+    actorName: actor.name,
+    extra: { kind: 'records', ev: ev.id, div },
+  });
+  return b.commit();
+}
+
+/** 관리자 경기 메모(비공개) */
+export function writeNote(t: string, evId: string, matchId: string, note: string): Promise<void> {
+  const b = writeBatch(db);
+  b.set(doc(db, paths.notes(t, evId)), { n: { [matchId]: note } }, { mergeFields: [new FieldPath('n', matchId)] });
+  return b.commit();
+}
+
+// ---------------- 심판 링크 ----------------
+
+export interface RefKey {
+  token: string;
+  pin: string;
+}
+export interface RefKeysDoc {
+  keys: Record<string, RefKey>;
+}
+export interface RefSessionDoc {
+  ev: string;
+  token: string;
+  pin: string;
+  name: string;
+  at: number;
+}
+
+function randomToken(len = 22): string {
+  const abc = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+  const bytes = crypto.getRandomValues(new Uint8Array(len));
+  return Array.from(bytes, (x) => abc[x % abc.length]).join('');
+}
+function randomPin(): string {
+  const n = crypto.getRandomValues(new Uint32Array(1))[0] % 1000000;
+  return String(n).padStart(6, '0');
+}
+
+/** 종목 심판 링크·PIN 새로 만들기(예전 링크·PIN·심판 기기는 모두 무효가 됨) */
+export function createRefKey(t: string, ev: { id: string; name: string }, prev: RefKey | undefined): Promise<void> {
+  const key: RefKey = { token: randomToken(), pin: randomPin() };
+  const b = writeBatch(db);
+  b.set(doc(db, paths.refKeys(t)), { keys: { [ev.id]: key } }, { mergeFields: [new FieldPath('keys', ev.id)] });
+  // 심판이 결과를 쓸 문서가 미리 있어야 한다(심판은 '수정'만 가능)
+  b.set(doc(db, paths.results(t, ev.id)), { updatedAt: Date.now() }, { merge: true });
+  addAudit(b, t, {
+    action: prev ? '심판 링크·PIN 새로 만들기' : '심판 링크·PIN 만들기',
+    target: ev.name,
+    before: null,
+    after: null,
+    extra: { kind: 'refkey', ev: ev.id },
+  });
   return b.commit();
 }
