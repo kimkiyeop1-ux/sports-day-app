@@ -1,13 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import rulesText from '../../firestore.rules?raw';
 import { connection, USE_EMULATOR } from '../lib/firebase';
 import { parseConnectionText, saveConnection, shareLink } from '../lib/connection';
-import { checkRules, type RulesStatus } from '../lib/rulesVersion';
+import { checkSetup, consoleUrl, parseProjectId, type CheckState, type SetupStatus } from '../lib/setupCheck';
 
 /**
  * [학교 연결] 화면
- * 각 학교가 자기 Firebase 프로젝트를 이 앱에 연결하고, 준비 상태를 점검한다.
+ * Firebase 메뉴 이름을 몰라도 되도록: 앱이 빠진 설정을 직접 확인하고,
+ * 고쳐야 할 것만 '정확한 Firebase 화면을 여는 버튼'으로 보여 준다.
  */
 export default function Connect() {
   return (
@@ -21,9 +22,32 @@ export default function Connect() {
   );
 }
 
+async function copyText(value: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(value);
+    return true;
+  } catch {
+    prompt('아래 내용을 복사하세요', value);
+    return false;
+  }
+}
+
+function OpenButton({ href, children, primary = true }: { href: string; children: React.ReactNode; primary?: boolean }) {
+  return (
+    <a className={`btn ${primary ? 'btn-primary' : ''}`} href={href} target="_blank" rel="noreferrer">
+      {children} ↗
+    </a>
+  );
+}
+
+// ================= 연결 전 =================
+
 function NotConnected() {
+  const [pidText, setPidText] = useState('');
+  const pid = parseProjectId(pidText);
   const [text, setText] = useState('');
   const parsed = parseConnectionText(text);
+  const mismatch = parsed && pid && parsed.projectId !== pid;
 
   const connect = () => {
     if (!parsed) return;
@@ -35,66 +59,178 @@ function NotConnected() {
 
   return (
     <>
+      <p className="muted">
+        학교마다 자기 Firebase(Google의 무료 저장소)에 대회 기록을 저장합니다. 두 단계만 하면 나머지는 이 화면이 하나씩 확인해 줍니다.
+      </p>
+
       <div className="card stack">
-        <p>
-          이 앱은 <b>학교마다 자기 Firebase(무료)</b>에 데이터를 저장합니다. 다른 학교와 데이터가 섞이지 않고, 앱 제작자도 우리 학교
-          데이터를 볼 수 없습니다.
+        <h2 style={{ margin: 0 }}>1. Firebase 프로젝트 이름 넣기</h2>
+        <p className="small" style={{ margin: 0 }}>
+          Firebase 화면 맨 위에 보이는 이름입니다(예: <code>sports-day-urihakgyo</code>). 주소창의 주소를 통째로 붙여넣어도 됩니다.
         </p>
-        <p className="muted small">
-          Firebase 프로젝트를 아직 만들지 않았다면 아래 '처음 준비하기'를 먼저 따라 하세요. 이미 연결된 학교의 전광판·심판 링크를 받았다면
-          그 링크로 들어오면 자동으로 연결됩니다.
-        </p>
+        <input value={pidText} onChange={(e) => setPidText(e.target.value)} placeholder="sports-day-우리학교" aria-label="Firebase 프로젝트 이름" />
+        {pidText && !pid && <div className="alert alert-warn">이름을 알아보지 못했습니다. 영문 소문자·숫자·하이픈(-)으로 된 이름을 넣어 주세요.</div>}
+        <details>
+          <summary className="small">아직 Firebase 프로젝트가 없어요</summary>
+          <div className="stack small" style={{ marginTop: 8 }}>
+            <OpenButton href={consoleUrl.home} primary={false}>Firebase 열기</OpenButton>
+            <div>학교 업무용 Google 계정으로 로그인 → <b>프로젝트 만들기</b>(또는 <b>새 프로젝트</b>) → 이름 입력 → 나머지는 <b>계속</b>만 누르면 됩니다. 만든 뒤 위 칸에 이름을 넣으세요.</div>
+          </div>
+        </details>
       </div>
-      <SetupGuide />
-      <div className="card stack">
-        <h2>연결값 붙여넣기</h2>
-        <p className="muted small">
-          Firebase 콘솔 → ⚙️ 프로젝트 설정 → 내 앱 → 'SDK 설정 및 구성'의 <code>const firebaseConfig = {'{ ... }'}</code> 부분을 통째로
-          복사해서 붙여넣으세요.
-        </p>
+
+      <div className="card stack" style={{ opacity: pid || parsed ? 1 : 0.55 }}>
+        <h2 style={{ margin: 0 }}>2. 연결 정보 복사해 오기</h2>
+        {pid ? (
+          <OpenButton href={consoleUrl.settings(pid)}>연결 정보 화면 열기</OpenButton>
+        ) : (
+          <p className="muted small" style={{ margin: 0 }}>1번에 이름을 넣으면 버튼이 생깁니다.</p>
+        )}
+        <ol className="small" style={{ margin: 0, paddingLeft: 20 }}>
+          <li>열린 화면을 <b>맨 아래까지</b> 내립니다.</li>
+          <li><code>const firebaseConfig = {'{'}</code> 로 시작하는 글을 복사합니다(옆의 복사 아이콘).</li>
+          <li>그런 글이 없으면 <code>&lt;/&gt;</code> 모양 버튼을 눌러 이름만 넣고 등록하세요. 그러면 나타납니다.</li>
+        </ol>
         <textarea
-          style={{ minHeight: 160, fontFamily: 'monospace', fontSize: 13 }}
+          style={{ minHeight: 140, fontFamily: 'monospace', fontSize: 13 }}
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder={'const firebaseConfig = {\n  apiKey: "...",\n  authDomain: "...",\n  projectId: "...",\n  ...\n};'}
+          placeholder={'여기에 붙여넣기\n\nconst firebaseConfig = {\n  apiKey: "...",\n  projectId: "...",\n  ...\n};'}
+          aria-label="연결 정보 붙여넣기"
         />
-        {text && !parsed && <div className="alert alert-warn">apiKey, projectId, appId 값을 찾지 못했습니다. 복사한 내용을 확인하세요.</div>}
-        {parsed && (
-          <div className="alert alert-ok">
-            프로젝트 <b>{parsed.projectId}</b> 를 찾았습니다.
-          </div>
-        )}
-        <button className="btn-primary" disabled={!parsed} onClick={connect}>
-          이 학교로 연결하기
+        {text && !parsed && <div className="alert alert-warn">연결 정보를 찾지 못했습니다. <code>firebaseConfig</code> 글 전체를 복사했는지 확인하세요.</div>}
+        {mismatch && <div className="alert alert-warn">붙여넣은 정보는 <b>{parsed!.projectId}</b> 프로젝트입니다. 1번 이름과 다릅니다. 맞는지 확인하세요.</div>}
+        {parsed && !mismatch && <div className="alert alert-ok">✅ <b>{parsed.projectId}</b> 프로젝트를 찾았습니다.</div>}
+        <button className="btn-primary" disabled={!parsed} onClick={connect} style={{ fontSize: 17 }}>
+          연결하기
         </button>
       </div>
     </>
   );
 }
 
+// ================= 연결 후: 자동 점검 =================
+
+interface Item {
+  key: string;
+  title: string;
+  why: string;
+  state: CheckState | 'checking';
+  fix: React.ReactNode;
+}
+
 function Connected() {
   const c = connection!;
-  const [rules, setRules] = useState<{ status: RulesStatus | 'checking'; detail?: string }>({ status: 'checking' });
+  const p = c.projectId;
+  const [st, setSt] = useState<SetupStatus | null>(null);
+  const [checking, setChecking] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
+  const last = useRef(0);
 
-  const recheck = () => {
-    setRules({ status: 'checking' });
-    checkRules().then(setRules);
-  };
-  useEffect(recheck, []);
+  const recheck = useCallback(() => {
+    last.current = Date.now();
+    setChecking(true);
+    checkSetup(c)
+      .then(setSt)
+      .finally(() => setChecking(false));
+  }, [c]);
+  useEffect(recheck, [recheck]);
+  // Firebase 탭에서 설정하고 돌아오면 자동으로 다시 확인
+  useEffect(() => {
+    const onFocus = () => Date.now() - last.current > 4000 && recheck();
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [recheck]);
 
   const copy = async (label: string, value: string) => {
-    try {
-      await navigator.clipboard.writeText(value);
+    if (await copyText(value)) {
       setCopied(label);
       setTimeout(() => setCopied(null), 2000);
-    } catch {
-      prompt('아래 내용을 복사하세요', value);
     }
   };
+  const s = (k: keyof SetupStatus): CheckState | 'checking' => (!st || checking ? 'checking' : (st[k] as CheckState));
 
-  const consoleBase = `https://console.firebase.google.com/project/${c.projectId}`;
-  const boardLink = shareLink(c, '/board');
+  const items: Item[] = [
+    {
+      key: 'database',
+      title: '데이터베이스',
+      why: '대회 기록을 저장하는 곳',
+      state: s('database'),
+      fix: (
+        <>
+          <OpenButton href={consoleUrl.firestore(p)}>데이터베이스 화면 열기</OpenButton>
+          <div>
+            <b>데이터베이스 만들기</b> → 위치는 <b>asia-northeast3 (Seoul)</b> → <b>프로덕션 모드</b> → 만들기
+          </div>
+        </>
+      ),
+    },
+    {
+      key: 'rules',
+      title: '보안 규칙',
+      why: '총점·순위를 관리자만 볼 수 있게 지키는 장치',
+      state: st?.database === 'missing' && !checking ? 'missing' : s('rules'),
+      fix: (
+        <>
+          <div className="row">
+            <button className="btn-primary" onClick={() => copy('rules', rulesText)}>{copied === 'rules' ? '✅ 복사됨' : '① 규칙 복사'}</button>
+            <OpenButton href={consoleUrl.rules(p)}>② 규칙 화면 열기</OpenButton>
+          </div>
+          <div>열린 화면의 글을 <b>모두 지우고</b> 붙여넣은 뒤 <b>게시</b>. (데이터베이스를 먼저 만들어야 합니다)</div>
+        </>
+      ),
+    },
+    {
+      key: 'anonymous',
+      title: '심판·진행자용 로그인',
+      why: '심판 폰이 이름·PIN만으로 들어오게 하는 설정',
+      state: s('anonymous'),
+      fix: (
+        <>
+          <OpenButton href={consoleUrl.providers(p)}>로그인 설정 화면 열기</OpenButton>
+          <div>
+            {st?.authNotStarted && <><b>시작하기</b>를 누른 뒤, </>}목록에서 <b>익명</b>을 골라 <b>사용 설정</b> → 저장
+            <span className="muted"> (목록에 없으면 '새 제공업체 추가' 안에 있습니다)</span>
+          </div>
+        </>
+      ),
+    },
+    {
+      key: 'google',
+      title: '관리자용 Google 로그인',
+      why: '관리자가 Google 계정으로 들어오게 하는 설정',
+      state: s('google'),
+      fix: (
+        <>
+          <OpenButton href={consoleUrl.providers(p)}>로그인 설정 화면 열기</OpenButton>
+          <div>
+            목록에서 <b>Google</b>을 골라 <b>사용 설정</b> → 지원 이메일에서 내 계정 선택 → 저장
+          </div>
+        </>
+      ),
+    },
+    {
+      key: 'domain',
+      title: '이 사이트 주소 허용',
+      why: `Google 로그인 창이 이 주소(${location.hostname})에서 열리도록 허용`,
+      state: s('domain'),
+      fix: (
+        <>
+          <div className="row">
+            <button className="btn-primary" onClick={() => copy('domain', location.hostname)}>{copied === 'domain' ? '✅ 복사됨' : '① 주소 복사'}</button>
+            <OpenButton href={consoleUrl.domains(p)}>② 허용 주소 화면 열기</OpenButton>
+          </div>
+          <div>
+            <b>도메인 추가</b> → 붙여넣기(<code>{location.hostname}</code>) → 추가
+          </div>
+        </>
+      ),
+    },
+  ];
+
+  const done = items.filter((i) => i.state === 'ok').length;
+  const firstTodo = items.find((i) => i.state === 'missing' || i.state === 'unknown');
+  const allOk = done === items.length;
 
   return (
     <>
@@ -102,98 +238,77 @@ function Connected() {
         <div className="row">
           <div className="grow">
             <div className="muted small">연결된 Firebase 프로젝트</div>
-            <div style={{ fontWeight: 800, fontSize: 18 }}>{c.projectId}</div>
+            <div style={{ fontWeight: 800, fontSize: 18 }}>{p}</div>
           </div>
-          <span className="badge badge-ok">연결됨</span>
+          <span className={`badge ${allOk ? 'badge-ok' : 'badge-warn'}`}>준비 {checking || !st ? '확인 중' : `${done}/${items.length}`}</span>
         </div>
       </div>
 
-      <h2>준비 상태 점검</h2>
-      <div className="card stack">
-        <CheckRow
-          ok={rules.status === 'ok' ? true : rules.status === 'checking' || rules.status === 'offline' ? null : false}
-          title="① 보안 규칙"
-          desc={
-            rules.status === 'ok'
-              ? '최신 보안 규칙이 적용되어 있습니다.'
-              : rules.status === 'checking'
-                ? '확인 중…'
-                : rules.status === 'offline'
-                  ? '인터넷 연결이 없어 확인할 수 없습니다.'
-                  : rules.status === 'outdated'
-                    ? '보안 규칙을 붙여넣지 않았거나 예전 버전입니다. 아래 순서대로 최신 규칙을 붙여넣으세요.'
-                    : `Firestore 데이터베이스가 아직 없거나 확인에 실패했습니다. (${rules.detail})`
-          }
-        />
-        {rules.status !== 'ok' && rules.status !== 'checking' && (
-          <ol className="small" style={{ margin: 0, paddingLeft: 20 }}>
-            <li>
-              <button className="btn-sm" onClick={() => copy('rules', rulesText)}>
-                {copied === 'rules' ? '✓ 복사됨' : '보안 규칙 복사'}
-              </button>
-            </li>
-            <li>
-              <a href={`${consoleBase}/firestore/rules`} target="_blank" rel="noreferrer">
-                Firebase 콘솔의 규칙 화면 열기 ↗
-              </a>{' '}
-              (데이터베이스가 없다면 먼저 [데이터베이스 만들기])
-            </li>
-            <li>안에 있던 글을 모두 지우고 붙여넣기 → [게시]</li>
-            <li>
-              1분쯤 뒤{' '}
-              <button className="btn-sm" onClick={recheck}>
-                다시 확인
-              </button>
-            </li>
-          </ol>
-        )}
-        <CheckRow
-          ok={null}
-          title="② 로그인 설정 (직접 확인)"
-          desc={
-            <>
-              Authentication에서 <b>Google</b>, <b>익명</b> 로그인을 켜고, 승인된 도메인에 <code>{location.hostname}</code> 을 추가하세요.{' '}
-              <button className="btn-sm" onClick={() => copy('domain', location.hostname)}>
-                {copied === 'domain' ? '✓ 복사됨' : '도메인 복사'}
-              </button>
-              <br />
-              <a href={`${consoleBase}/authentication/providers`} target="_blank" rel="noreferrer">
-                로그인 방법 열기 ↗
-              </a>{' '}
-              ·{' '}
-              <a href={`${consoleBase}/authentication/settings`} target="_blank" rel="noreferrer">
-                승인된 도메인 열기 ↗
-              </a>
-            </>
-          }
-        />
-        <CheckRow
-          ok={null}
-          title="③ 관리자 등록"
-          desc={
-            <>
-              <Link to="/admin">관리자 화면</Link>에서 Google로 로그인한 뒤 [이 계정을 관리자로 등록]을 누르세요. 처음 한 명만 등록할 수
-              있습니다.
-            </>
-          }
-        />
+      {st?.offline && <div className="alert alert-warn">인터넷 연결이 없어 확인할 수 없습니다.</div>}
+
+      <div className="row" style={{ margin: '16px 0 8px' }}>
+        <h2 className="grow" style={{ margin: 0 }}>준비 상태</h2>
+        <button className="btn-sm" onClick={recheck} disabled={checking}>{checking ? '확인 중…' : '다시 확인'}</button>
+      </div>
+      <p className="muted small" style={{ marginTop: 0 }}>
+        앱이 직접 확인합니다. ❌인 것만 버튼을 눌러 고치고 이 화면으로 돌아오면 자동으로 다시 확인합니다(설정 반영에 1분쯤 걸릴 수 있어요).
+      </p>
+
+      <div className="card" style={{ padding: 0 }}>
+        {items.map((it) => {
+          const open = it === firstTodo;
+          return (
+            <div key={it.key} className={`setup-item ${open ? 'setup-now' : ''}`}>
+              <div className="row" style={{ flexWrap: 'nowrap', alignItems: 'flex-start' }}>
+                <span className="setup-icon">
+                  {it.state === 'ok' ? '✅' : it.state === 'missing' ? '❌' : it.state === 'checking' ? '⏳' : '❔'}
+                </span>
+                <div className="grow">
+                  <div style={{ fontWeight: 700 }}>
+                    {it.title} {open && <span className="badge badge-primary">지금 할 일</span>}
+                  </div>
+                  <div className="muted small">
+                    {it.why}
+                    {it.state === 'unknown' && ' · 자동 확인이 안 됐습니다. 아래 버튼으로 직접 확인해 주세요.'}
+                  </div>
+                </div>
+              </div>
+              {(it.state === 'missing' || it.state === 'unknown') && <div className="setup-fix stack small">{it.fix}</div>}
+            </div>
+          );
+        })}
+        <div className={`setup-item ${allOk ? 'setup-now' : ''}`}>
+          <div className="row" style={{ flexWrap: 'nowrap', alignItems: 'flex-start' }}>
+            <span className="setup-icon">👤</span>
+            <div className="grow">
+              <div style={{ fontWeight: 700 }}>
+                관리자 등록 {allOk && <span className="badge badge-primary">지금 할 일</span>}
+              </div>
+              <div className="muted small">위가 모두 ✅이면 관리자 화면에서 Google로 로그인 → [이 계정을 관리자로 등록]. 처음 한 명만 됩니다.</div>
+            </div>
+          </div>
+          <div className="setup-fix">
+            <Link className={`btn ${allOk ? 'btn-primary' : ''}`} to="/admin">관리자 화면으로</Link>
+          </div>
+        </div>
       </div>
 
-      <h2>다른 기기에 나눠 줄 링크</h2>
+      <h2 style={{ marginTop: 24 }}>다른 기기에 나눠 줄 링크</h2>
       <div className="card stack">
-        <p className="muted small">이 링크로 들어오면 따로 연결하지 않아도 이 학교에 자동으로 연결됩니다.</p>
+        <p className="muted small" style={{ margin: 0 }}>이 링크로 들어오면 따로 연결하지 않아도 이 학교에 자동으로 연결됩니다. 심판·진행자 링크는 관리자 화면에서 만듭니다.</p>
         <div className="row">
           <span className="grow">📺 전광판 링크</span>
-          <button className="btn-sm" onClick={() => copy('board', boardLink)}>
-            {copied === 'board' ? '✓ 복사됨' : '복사'}
-          </button>
+          <button className="btn-sm" onClick={() => copy('board', shareLink(c, '/board'))}>{copied === 'board' ? '✅ 복사됨' : '복사'}</button>
         </div>
-        <p className="muted small">심판 입력 링크(종목별 QR·PIN)는 관리자 화면의 [심판 링크]에서 만듭니다.</p>
+        <div className="row">
+          <span className="grow">📋 학생용 공개 대진표 링크</span>
+          <button className="btn-sm" onClick={() => copy('bracket', shareLink(c, '/bracket'))}>{copied === 'bracket' ? '✅ 복사됨' : '복사'}</button>
+        </div>
       </div>
 
       {!USE_EMULATOR && (
-        <div className="card stack">
-          <h3>연결 해제</h3>
+        <details className="card">
+          <summary className="small" style={{ cursor: 'pointer' }}>다른 Firebase 프로젝트로 바꾸기(연결 해제)</summary>
           <p className="muted small">이 기기에서만 연결을 해제합니다. 학교 데이터는 지워지지 않습니다.</p>
           <button
             className="btn-danger"
@@ -206,50 +321,8 @@ function Connected() {
           >
             연결 해제
           </button>
-        </div>
+        </details>
       )}
     </>
-  );
-}
-
-function CheckRow({ ok, title, desc }: { ok: boolean | null; title: string; desc: React.ReactNode }) {
-  return (
-    <div className="row" style={{ alignItems: 'flex-start', flexWrap: 'nowrap' }}>
-      <span style={{ fontSize: 20, width: 26 }}>{ok === true ? '✅' : ok === false ? '⚠️' : '👉'}</span>
-      <div className="grow">
-        <div style={{ fontWeight: 700 }}>{title}</div>
-        <div className="small">{desc}</div>
-      </div>
-    </div>
-  );
-}
-
-function SetupGuide() {
-  return (
-    <details className="card">
-      <summary style={{ fontWeight: 700, cursor: 'pointer' }}>📘 처음 준비하기: Firebase 프로젝트 만들기 (약 10분, 무료)</summary>
-      <ol className="small" style={{ paddingLeft: 20, marginBottom: 0 }}>
-        <li>
-          <a href="https://console.firebase.google.com" target="_blank" rel="noreferrer">
-            console.firebase.google.com
-          </a>{' '}
-          접속 → 학교 업무용 Google 계정으로 로그인
-        </li>
-        <li>[프로젝트 만들기] → 이름 예: sports-day-우리학교 → (Gemini, 애널리틱스는 꺼도 됨) → 만들기</li>
-        <li>
-          왼쪽 메뉴 [빌드 → Firestore Database] → [데이터베이스 만들기] → 위치 <b>asia-northeast3 (Seoul)</b> → <b>프로덕션 모드</b> →
-          만들기
-        </li>
-        <li>[빌드 → Authentication] → [시작하기] → 로그인 방법에서 <b>Google</b> 사용 설정(지원 이메일 선택) → 저장, 이어서 <b>익명</b>도 사용 설정</li>
-        <li>
-          Authentication → [설정] 탭 → [승인된 도메인] → [도메인 추가] → <code>{location.hostname}</code>
-        </li>
-        <li>왼쪽 위 ⚙️ → [프로젝트 설정] → 아래 '내 앱'에서 웹 아이콘 <code>{'</>'}</code> → 앱 닉네임 입력 → [앱 등록]</li>
-        <li>화면에 나온 firebaseConfig 부분을 복사해 아래 칸에 붙여넣기</li>
-      </ol>
-      <p className="muted small" style={{ marginBottom: 0 }}>
-        카드 등록이 필요 없는 무료(Spark) 요금제 그대로 쓰면 됩니다. 비용이 청구되지 않습니다.
-      </p>
-    </details>
   );
 }

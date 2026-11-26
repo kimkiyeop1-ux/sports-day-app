@@ -75,12 +75,12 @@
 
 ## 처음 한 번만: 우리 학교 연결 (모든 학교 공통)
 
-[`docs/other-schools-guide.md`](docs/other-schools-guide.md)의 1~4단계와 같습니다. 요약:
+1. Firebase에서 프로젝트만 만든다(이름 입력 → 계속).
+2. 앱 → **🏫 학교 연결** → 프로젝트 이름 입력 → [연결 정보 화면 열기]에서 firebaseConfig 복사·붙여넣기 → [연결하기]
+3. 앱이 데이터베이스·보안 규칙·익명/Google 로그인·사이트 주소 허용을 **자동 점검**한다. ❌ 옆 버튼이 Firebase의 정확한 설정 화면을 연다(Firebase 탭에서 돌아오면 자동 재확인).
+4. 모두 ✅ → 관리자 → Google 로그인 → [이 계정을 관리자로 등록]
 
-1. Firebase 프로젝트 생성 → Firestore(서울, 프로덕션 모드) → Authentication(Google, 익명 사용 설정, 승인된 도메인에 `<아이디>.github.io` 추가) → 웹 앱 등록
-2. 앱 → **🏫 학교 연결** → firebaseConfig 붙여넣기
-3. 학교 연결 화면에서 **[보안 규칙 복사]** → 콘솔 규칙 화면에 붙여넣고 게시 → ✅ 확인
-4. 앱 → 관리자 → Google 로그인 → **[이 계정을 관리자로 등록]** (최초 1명만 가능, 이후 추가·변경은 Firebase 콘솔에서)
+자세한 안내: [`docs/other-schools-guide.md`](docs/other-schools-guide.md)
 
 ---
 
